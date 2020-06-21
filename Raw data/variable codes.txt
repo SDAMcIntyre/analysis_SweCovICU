@@ -1,0 +1,77 @@
+mCh@cov1di9
+
+AllaDiagnoser_Vtf_Id
+
+huvuddiagnos
+- in order of time, reason why they are in ICU; U071 = COVID19, all have it somewhere (dataset definition), not very important
+
+diagnosis column codes
+ - all diagnoses mentioned in records
+
+columns KN to KQ respiratory failure
+A mild, B moderate, C severe, X not specified
+ - not mutually exclusive but take the worst
+
+NV N179 acute renal failure unspecified
+NU N178 other acute renale failure
+NT N170 acute renal failure with tubulendocrosis
+- yes in any of these? match with SOFA_Vtf_Id -> BX KDIGO_min more than 0?
+
+Basdata
+
+AG DagarEfterIn 
+- after ICU until death, n days; NULL if they survived
+
+T InskrTidpunkt
+V UtskrTidpunkt
+ - calculate difference to get days in ICU
+*INCLUDE
+
+AF AvregDatum
+- date of death, present for those who died within 30, calc days since T
+*INCLUDE
+
+AF - V n days died after ICU
+*ICU
+
+X UtskrivenOrsak
+- reason for discharge * wait for Patrik
+
+AH SAPS3 poang: 
+ - simplified ..., aggregate of previous morbidity and health
+
+Gender
+height
+weight
+
+
+SIRI
+S to AG risk factors (ignore T)
+AI to AS medication
+
+
+Komplikationer
+only 35 missing 
+
+
+
+Åtgärder_Vtf_Id
+
+DG021 invasive mechanical ventilation * include in multivariable analysis
+DG023 noninvasive mechanical ventilation *descriptive only
+DG028 ? * descriptive only 
+DR020 dialysis * multiv. analysis 
+- these are not mutually exclusive
+
+Main analysis 30 days
+
+
+
+SOFA_Vtf_ID
+
+SOFA sequential organ failure *descriptive only
+- aggregate score of 5 different organ functions, min 0 max 15
+- more than 50% missing data, so don't use
+Column H TotPoang SOFATotalPoint
+Column R Oxygeneringsindex OxygenationIndex
+to be calculated: n days from symptom onset to ICU
