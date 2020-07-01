@@ -1,0 +1,327 @@
+---
+title: "SweCovICU Table 1"
+author: "Sarah McIntyre"
+date: "29/06/2020"
+output:
+  html_notebook: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(readxl)
+library(summarytools)
+library(knitr)
+library(kableExtra)
+library(broom)
+
+# Read in the data
+swecovdata <- read_csv('SweCovICU_AnalysedData.csv',
+                       col_types = cols(
+                         .default = col_logical(),
+                          Age = col_double(),
+                          Gender = col_character(),
+                          SAPS3TotalPoints = col_double(),
+                          OxygenationIndexToUse = col_double(),
+                          ICUDays = col_double(),
+                          DischargedTo = col_character(),
+                          CareResult = col_character(),
+                          `DG021 days` = col_double(),
+                          SOFATotalPoint = col_double(),
+                          KDIGOMin = col_character(),
+                          DaysToICUFromIllness = col_double(),
+                          AgeGroup = col_character(),
+                          nICUTransfersToUse = col_character(),
+                          InvasiveMechVentDays = col_double(),
+                          SAPS3TimeInHospitalNo0 = col_double(),
+                          J809worst = col_character(),
+                          DaysToDeath = col_double()
+                         )) %>% 
+  mutate(J809worst = J809worst %>% factor(levels = c('none', 'mild','moderate','severe')))
+
+
+```
+
+# Table 1
+
+```{r echo=FALSE}
+
+table1data <- swecovdata %>% 
+  # put them in order
+  select(Age, 
+         `Age Group` = AgeGroup, 
+         `> 65 years old` = Age65plus, 
+         `Sex` = Gender,
+         `SAPS III score` = SAPS3TotalPoints,
+         `SOFA score on admission` = SOFATotalPoint,
+         `Comorbidities` = ComorbidityAny, 
+         `Hypertension` = RiskHypertension, 
+         `Chronic heart diseases` = RiskChronicHeartDisease, 
+         `Chronic lung disease` = RiskChronicLungDisease, 
+         `Obesity` = RiskObesityToUse, 
+         `Diabetes Mellitus` = RiskDiabetes, 
+         `Chronic renal disease` = RiskChronKidneyDisease, 
+         `Chronic hepatic disease` = RiskChronicLiverDisease, 
+         `Chronic neuromuscular disease` = RiskNeuroMuscDisease, 
+         `Immunosupression` = RiskReducedImmuneDefence, 
+         `PaO2/FiO2 on admission` = OxygenationIndexToUse, 
+         `Spent time in hospital prior to ICU admission` = TIHmore.than.0, 
+         `Number of days spent in hospital prior to ICU admission` = SAPS3TimeInHospitalNo0, 
+         `Symptom onset prior to ICU admission (days)` = DaysToICUFromIllness, 
+         `Transfers to another ICU` = nICUTransfersToUse, 
+         `ICU LOS (days)` = ICUDays, 
+         `Discharge destination after ICU` = DischargedTo, 
+         `Acute Respiratory Failure ` = J809worst, 
+         `AKI` = KDIGOMin, 
+         `ICU mortality` = CareResult, 
+         `30-day mortality` = Mortality30days)
+
+stats_values <- function(x, digits = 1) {
+  if (is.numeric(x)) {
+      med = median(x, na.rm = TRUE) %>% round(., digits)
+  Q1 = quantile(x, 1/4, na.rm = TRUE) %>% round(., digits)
+  Q3 = quantile(x, 3/4, na.rm = TRUE) %>% round(., digits)
+  output <- paste0(med, ' (',Q1,', ',Q3,')')
+  } else {
+    t <- tibble(v = x) %>%
+      filter(!is.na(v)) %>% 
+      group_by(v) %>% tally() %>% 
+      mutate(pct = round(100*n/sum(!is.na(x)),digits))
+    output <- paste0(t$n, ' (',t$pct,'%)') %>% paste0(collapse = '<br>')
+  }
+  
+  if (is.logical(x)) { 
+    t <- t %>% filter(v) 
+    output <- paste0(t$n, ' (',t$pct,'%)') %>% paste0(collapse = '<br>')
+  } else {
+      output <- paste0('<br>',output)
+    }
+  
+  output
+}
+
+value_labels <- function(x) {
+  if (class(x) == 'numeric') {
+    output <- 'Median (IQR):'
+  } else {
+    t <- tibble(v = x) %>%
+      filter(!is.na(v)) %>% 
+      group_by(v) %>% tally() 
+    output <- paste0(t$v,':') %>% paste0(collapse = '<br>')
+  }
+  if (class(x) == 'logical') {
+    t <- t %>% filter(v)
+    output <- ''
+  }
+  output
+}
+
+table1data %>% 
+  summarise_all(list(Label = ~value_labels(.),
+                     Value = ~stats_values(.,1),
+                    `Number with data` = ~sum(!is.na(.)))
+               ) %>% 
+  pivot_longer(everything(), 
+               names_to = c('Variable','.value'),  
+               names_sep = '_') %>% 
+  mutate(Variable = paste0('<b>',Variable,'</b>', '<br>', Label)) %>% 
+  select(-Label) %>% 
+  kable(escape = F) %>% kable_styling(full_width = F, bootstrap_options = 'condensed')
+
+```
+
+# Table 2
+
+```{r echo=FALSE}
+
+table2data <- swecovdata %>% 
+  # put them in order
+  select(Mortality30days, 
+         `Invasive mechanical ventilation n (%)` = InvasiveMechanicalVentilation, 
+         InvasiveMechVentDays, 
+         `Noninvasive mechanical ventilation n (%)` = NonInvasiveMechVent, 
+         `HFNO n (%)` = OxHighFlowNasalCanula, 
+         `Prone positioning  n (%)` = CarePronePatient, 
+         `ECMO n (%)` = ECMO, 
+         `Specific pharmacotherapy n (%)` = SpecPharmAny, 
+         `HC1/Cq n (%)` = CovidMedicineKlorokinfosfat, 
+         `Lopinavir/ritonavir n (%)` = LopinavirOrRitonavir, 
+         `Remdesivir n (%)` = CovidMedicineRemdesivir, 
+         `Tocilizumab n (%)` = CovidMedicineTocilizumab, 
+         `Steroids for ARDS n (%)` = CovidMedeicineSteroids, 
+         `Other n (%)` = OtherPharmAny, 
+         `Vasopressors/inotropes n (%)` = VasoInoAny, 
+         `CRRT n (%)` = CRRT)
+
+table2results <- table2data %>% 
+  select(-InvasiveMechVentDays) %>% 
+  pivot_longer(cols = -c('Mortality30days'), names_to = 'Treatment') %>% 
+  mutate(Treatment = factor(Treatment, levels = names(table2data)[-c(1,3)])) %>% 
+  group_by(Treatment) %>% 
+  nest() %>% 
+  mutate(fisher.result = map( data,
+                              ~xtabs( ~ Mortality30days + value, data = .x) %>%
+                                fisher.test(., conf.int = TRUE) %>%
+                                tidy()  
+                              ),
+         `Number with data` = map_dbl(data, ~sum(!is.na(.$value)) ),
+         AllN = map_dbl(data, ~sum(.$value, na.rm = TRUE) ),
+         SurvivorsN = map_dbl(data, ~sum(.$value & .$Mortality30days == FALSE, na.rm = TRUE) ),
+         `Non-survivorsN` = map_dbl(data, ~sum(.$value & .$Mortality30days == TRUE, na.rm = TRUE))
+  ) %>% 
+  unnest(fisher.result)
+
+table2 <- table2results %>% 
+  mutate(
+    All = if_else(AllN > 20, 
+                  paste0(AllN,' (', round(100*AllN/`Number with data`,1), '%)'),
+                  '< 20'),
+    Survivors = if_else(AllN > 20, 
+                  paste0(SurvivorsN, ' (', round(100*SurvivorsN/AllN,1), '%)'),
+                  '-'),
+    `Non-survivors` = if_else(AllN > 20, 
+                  paste0(`Non-survivorsN`, ' (', round(100*`Non-survivorsN`/AllN,1), '%)'),
+                  '-'),
+    `p-value` = if_else(AllN > 20, 
+                  as.character(round(p.value,4)),
+                  '-')
+    ) %>% 
+  select(Treatment, `Number with data`, All, Survivors, `Non-survivors`, `p-value`) 
+
+quant_values <- function(x, digits = 1) {  
+  med = median(x, na.rm = TRUE) %>% round(., digits)
+  Q1 = quantile(x, 1/4, na.rm = TRUE) %>% round(., digits)
+  Q3 = quantile(x, 3/4, na.rm = TRUE) %>% round(., digits)
+  paste0(med, ' (',Q1,', ',Q3,')')
+}
+
+modeldays <- glm(Mortality30days ~ InvasiveMechVentDays, 
+                family=binomial(link="logit"),
+                        data = table2data)
+table2 %>% 
+  filter(Treatment == 'Invasive mechanical ventilation n (%)') %>% 
+  bind_rows(table2data %>%
+              summarise(
+                Treatment = 'No. days of invasive mechanical ventilation median [IQR]',
+                `Number with data` = sum(!is.na(InvasiveMechVentDays)),
+                All = quant_values(InvasiveMechVentDays),
+                Survivors = if_else(Mortality30days, 
+                                as.numeric(NA),
+                                InvasiveMechVentDays) %>% quant_values(),
+                `Non-survivors` = if_else(Mortality30days,
+                                      InvasiveMechVentDays,
+                                      as.numeric(NA)) %>% quant_values(),
+                `p-value` = as.character(round(coef(summary(modeldays))[2,4],4))
+            )) %>% 
+  bind_rows(table2 %>% 
+  filter(Treatment != 'Invasive mechanical ventilation n (%)')) %>% 
+  kable(escape = F) %>% kable_styling(full_width = F, bootstrap_options = 'condensed')
+
+```
+
+
+# Table 3
+
+```{r echo=FALSE}
+
+table3data <- swecovdata %>% 
+  select(Mortality30days, 
+         `Age Group` = AgeGroup,
+         Age,
+         Sex = Gender,
+         `SAPS III score` = SAPS3TotalPoints,
+         `SOFA score` = SOFATotalPoint,
+         Obesity = RiskObesityToUse,
+         `Diabetes Mellitus` = RiskDiabetes,
+         Hypertension = RiskHypertension,
+         `Chronic heart diseases` = RiskChronicHeartDisease, 
+         `Chronic lung disease` = RiskChronicLungDisease, 
+         `Chronic renal disease` = RiskChronKidneyDisease, 
+         `Immunosuppression` = RiskReducedImmuneDefence, 
+         `Time from symptom onset to ICU` = DaysToICUFromIllness, 
+         `PAO2/FIO2 on admission` = OxygenationIndexToUse, 
+         `Acute respiratory failure` = J809worst, 
+         `Invasive mechanical ventilation` = InvasiveMechanicalVentilation, 
+         `Noninvasive mechanical ventilation` = NonInvasiveMechVent, 
+         HFNO = OxHighFlowNasalCanula, 
+         `Prone positioning` = CarePronePatient, 
+         `Specific pharmacotherapy*` = SpecPharmAny, 
+         `Vasopressors/Inotropes` = VasoInoAny,
+         CRRT, 
+         `Transfer to other ICU` = ICUtransferred) 
+
+multivardata <- swecovdata %>% 
+  select(c(Mortality30days, RiskChronicHeartDisease, RiskChronKidneyDisease, RiskReducedImmuneDefence, DaysToICUFromIllness, J809worst, InvasiveMechanicalVentilation, NonInvasiveMechVent, HFNO = OxHighFlowNasalCanula, PronePosition = CarePronePatient, SpecPharmAny, CRRT, ICUtransferred)) %>% 
+  na.omit() 
+
+multivardata %>% nrow()
+
+# multivardata %>% 
+#   summarise_all(list( n.valid = ~sum(!is.na(.))))
+
+#### model 1 ####
+multivar <- glm(Mortality30days ~ RiskChronicHeartDisease + RiskChronKidneyDisease + RiskReducedImmuneDefence + I(DaysToICUFromIllness/7) + J809worst + InvasiveMechanicalVentilation + NonInvasiveMechVent + HFNO + PronePosition + SpecPharmAny + CRRT + ICUtransferred,
+              family=binomial(link="logit"),
+              data = multivardata)
+
+summary(multivar); exp(cbind(coef(multivar), confint(multivar)))  %>% round(.,1)
+
+#### age ####
+modelagegroup <- glm(Mortality30days ~ AgeGroup, 
+                family=binomial(link="logit"),
+                        data = table3data)
+summary(modelagegroup)
+exp(cbind(coef(modelagegroup), confint(modelagegroup)))  %>% round(.,1)
+
+
+modelage <- glm(Mortality30days ~ I(Age/10), 
+                family=binomial(link="logit"),
+                        data = table3data)
+summary(modelage)
+exp(cbind(coef(modelage), confint(modelage)))  %>% round(.,1)
+
+#### respiratory failure ####
+modelrespfail <- glm(Mortality30days ~ J809worst, 
+                family=binomial(link="logit"),
+                        data = table3data)
+summary(modelrespfail)
+exp(cbind(coef(modelrespfail), confint(modelrespfail)))  %>% round(.,1)
+
+#### sex ####
+xtabs( ~ Mortality30days + Gender, data = table3data) %>%
+  fisher.test(., conf.int = TRUE)
+
+#### chronic renal disease ####
+xtabs( ~ Mortality30days + RiskChronKidneyDisease, data = table3data) %>%
+  fisher.test(., conf.int = TRUE)
+
+#### immunosuppression ####
+xtabs( ~ Mortality30days + RiskReducedImmuneDefence, data = table3data) %>%
+  fisher.test(., conf.int = TRUE)
+
+#### Time from symptom onset to ICU ####
+modelsymptomsToICU <- glm(Mortality30days ~ I(DaysToICUFromIllness/7), 
+                family=binomial(link="logit"),
+                        data = table3data)
+summary(modelsymptomsToICU); exp(cbind(coef(modelsymptomsToICU), confint(modelsymptomsToICU)))  %>% round(.,1)
+
+library(janitor)
+table3data %>% 
+  tabyl(PronePosition, SpecPharmAny) %>% 
+  adorn_totals(c('row','col')) %>% 
+  adorn_percentages(denominator = 'col') %>% 
+  adorn_pct_formatting() %>% 
+  adorn_ns() %>% 
+  adorn_title() %>% 
+  kable() %>% kable_styling(full_width = F)
+
+xtabs( ~ PronePosition + SpecPharmAny, data = table3data) %>%
+  fisher.test(., conf.int = TRUE)
+
+modelposthoc <- glm(Mortality30days ~ PronePosition*SpecPharmAny, 
+                family=binomial(link="logit"),
+                        data = table3data)
+summary(modelposthoc); exp(cbind(coef(modelposthoc), confint(modelposthoc)))  %>% round(.,1)
+```

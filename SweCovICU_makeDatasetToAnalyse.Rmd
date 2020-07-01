@@ -1,0 +1,256 @@
+---
+title: "SweCovICU data management"
+author: "Sarah McIntyre"
+date: "June 2020"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+---
+
+# load packages
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(readxl)
+library(summarytools)
+
+```
+
+# read in the data
+```{r}
+
+datafile <- 'Raw data/MichelleChew_SweCOVID ICU Study_Unique_25Jun_SM_smallerrorsfixed_mc30jun_npwd.xlsx'
+basicdata <- read_excel(datafile, na='NULL', sheet = 'Basic data') 
+
+diagnosisdata <- read_excel(datafile, na='NULL', sheet = 'AllDiagnoses', range = 'A1:TY1609')
+
+SOFAdata <- read_excel(datafile, na='NULL', sheet = 'SOFA', range = 'A1:BX1609')
+
+measuresdata <- read_excel(datafile, na='NULL', sheet = 'Measures', range = 'A1:BC1609')
+
+SIRIdata <- read_excel(datafile, na='NULL', sheet = 'SIRI', range = 'A1:AZ1609')
+
+
+```
+
+# create variables with any "1" in a list of other variables
+```{r}
+
+# "Any" of a list variables
+
+comorbiddata <- SIRIdata %>% 
+  select(c(PersonalID,
+           RiskHypertension,
+           RiskChronicHeartDisease,
+           RiskChronicLungDisease,
+           RiskDiabetes,
+           RiskChronKidneyDisease,
+           RiskChronicLiverDisease,
+           RiskNeuroMuscDisease,
+           RiskReducedImmuneDefence)) %>% 
+      pivot_longer(cols = -c(PersonalID),
+                   names_to = c('Comorbidity')) %>% 
+      group_by(PersonalID) %>%
+      summarise(ComorbidityAny = ifelse(all(is.na(value)),
+                                        NA, sum(value, na.rm = TRUE)
+                                        ) %>% sign() %>% as.logical()
+                )
+
+specpharmdata <- SIRIdata %>% 
+  select(c(PersonalID,
+           CovidMedicineKlorokinfosfat,
+           CovidMedicineLopinavir,
+           CovidMedicineLopinavirRitonavir,
+           CovidMedicineRemdesivir,
+           CovidMedicineTocilizumab,
+           CovidMedeicineSteroids)) %>% 
+      pivot_longer(cols = -c(PersonalID),
+                   names_to = c('SpecificPharmacotherapy')) %>% 
+      group_by(PersonalID) %>%
+    summarise(SpecPharmAny = ifelse(all(is.na(value)), 
+                              NA, sum(value, na.rm = TRUE)
+                              ) %>% sign() %>% as.logical()
+    )
+  
+otherpharmdata <- SIRIdata %>% 
+  select(c(PersonalID,
+           CovidMedicineDarunavir,
+           CovidMedicineVitamineC,
+           CovidMedicineOther)) %>%
+  pivot_longer(cols = -c(PersonalID),
+               names_to = c('OtherPharmacotherapy')) %>%
+  group_by(PersonalID) %>%
+  summarise(OtherPharmAny = ifelse(all(is.na(value)),
+                                NA, sum(value, na.rm = TRUE)
+                                ) %>% sign() %>% as.logical()
+    )
+
+vasodata <- SOFAdata %>%
+  select(c(PersonalID,
+           Dopamin,
+           Adrenalin,
+           Noradrenalin,
+           Dobutamin,
+           Levosimendan,
+           Vasopressin)) %>%
+  pivot_longer(cols = -c(PersonalID),
+               names_to = c('VasopressorsInotropes')) %>% 
+  mutate(valueBinary = case_when(value == 'No' ~ 0,
+                                 (is.na(value) | value=='Missing') ~ as.numeric(NA),
+                                 value != 'No' ~ 1
+                                 )) %>%
+  group_by(PersonalID) %>% 
+  summarise(VasoInoAny = ifelse(all(is.na(valueBinary)), 
+                              NA, sum(valueBinary, na.rm = TRUE)
+                              ) %>% sign() %>% as.logical()
+            )
+
+```
+
+# make the analysis dataset
+```{r}
+
+swecovdata <- comorbiddata %>% 
+  full_join(specpharmdata) %>% 
+  full_join(otherpharmdata) %>% 
+  full_join(vasodata) %>% 
+  full_join (basicdata %>% select(c(PersonalID,
+                                    Deceased,
+                                    Age,
+                                    Gender,
+                                    SAPS3TotalPoints,
+                                    ArrivalBMI,
+                                    OxygenationIndexToUse,
+                                    NumberOfICUTransfers,
+                                    SAPS3TimeInHospital, 
+                                    ICUDays,
+                                    DischargedTo,
+                                    CareResult,
+                                    OffRegistryDate,
+                                    AdmissionTime,
+                                    `DaysFromDischargeToOff-registry/Diseased`))) %>% 
+  full_join(measuresdata %>% select(c(PersonalID,
+                                      `DG021 min`,
+                                      `DG021 days`,
+                                      `DG023 min`,
+                                      `DG028 min`,
+                                      `SR320 min`,
+                                      `DV023 days`,
+                                      `DR020 min`))) %>% 
+  full_join(SOFAdata %>% select(c(PersonalID,
+                                  SOFATotalPoint,
+                                  KDIGOMin))) %>% 
+  full_join(SIRIdata %>% select(c(PersonalID,
+                                  # specific
+                                  CovidMedicineKlorokinfosfat,
+                                  CovidMedicineLopinavir,
+                                  CovidMedicineLopinavirRitonavir,
+                                  CovidMedicineRemdesivir,
+                                  CovidMedicineTocilizumab,
+                                  CovidMedeicineSteroids,
+                                  # comorbidities
+                                  RiskHypertension,
+                                  RiskChronicHeartDisease,
+                                  RiskChronicLungDisease,
+                                  RiskObesity,
+                                  RiskDiabetes,
+                                  RiskChronKidneyDisease,
+                                  RiskChronicLiverDisease,
+                                  RiskNeuroMuscDisease,
+                                  RiskReducedImmuneDefence,
+                                  DaysToICUFromIllness))) %>%
+  full_join(diagnosisdata %>% select(c(PersonalID,
+                                       J809A,
+                                       J809B,
+                                       J809C,
+                                       J809X))) %>% 
+  mutate(Age65plus = Age >= 65,
+         AgeGroup = case_when(Age < 50 ~ '<50',
+                              between(Age,50,59) ~ '50-59',
+                              between(Age,60,69) ~ '60-69',
+                              between(Age,70,79) ~ '70-79',
+                              Age >= 80 ~ '80+',
+                              TRUE ~ as.character(NA)),
+         BMIover30 = as.numeric(ArrivalBMI > 30),
+         RiskObesityToUse = coalesce(BMIover30, RiskObesity),
+         nICUTransfersToUse = if_else(NumberOfICUTransfers >= 3,
+                                      '3+', as.character(NumberOfICUTransfers)),
+         InvasiveMechanicalVentilation = `DG021 min` > 0,
+         InvasiveMechVentDays = if_else(`DG021 days`==0,
+                                        as.numeric(NA), `DG021 days`),
+         NonInvasiveMechVent = `DG023 min` > 0,
+         OxHighFlowNasalCanula = `DG028 min` > 0,
+         CarePronePatient = `SR320 min` > 0,
+         ECMO = `DV023 days` >0,
+         CRRT = `DR020 min` > 0,
+         LopinavirOrRitonavir = pmax(CovidMedicineLopinavir,
+                                    CovidMedicineLopinavirRitonavir,
+                                    na.rm = TRUE) %>% as.logical(),
+         CovidMedicineKlorokinfosfat = as.logical(CovidMedicineKlorokinfosfat),
+         CovidMedicineRemdesivir = as.logical(CovidMedicineRemdesivir),
+         CovidMedicineTocilizumab = as.logical(CovidMedicineTocilizumab),
+         CovidMedeicineSteroids = as.logical(CovidMedeicineSteroids),
+         ICUtransferred = NumberOfICUTransfers > 0,
+         TIHmore.than.0 = SAPS3TimeInHospital > 0,
+         SAPS3TimeInHospitalNo0 = if_else(SAPS3TimeInHospital > 0,
+                                          SAPS3TimeInHospital, as.numeric(NA)),
+         DaysToICUFromIllness = if_else(DaysToICUFromIllness < 0, 
+                                        as.numeric(NA), 
+                                        DaysToICUFromIllness),
+         ComorbidityAny = as.logical(ComorbidityAny),
+         RiskHypertension = as.logical(RiskHypertension),
+         RiskChronicHeartDisease = as.logical(RiskChronicHeartDisease),
+         RiskChronicLungDisease = as.logical(RiskChronicLungDisease),
+         RiskObesityToUse = as.logical(RiskObesityToUse),
+         RiskDiabetes = as.logical(RiskDiabetes),
+         RiskChronKidneyDisease = as.logical(RiskChronKidneyDisease),
+         RiskChronicLiverDisease = as.logical(RiskChronicLiverDisease),
+         RiskNeuroMuscDisease = as.logical(RiskNeuroMuscDisease),
+         RiskReducedImmuneDefence = as.logical(RiskReducedImmuneDefence),
+         KDIGOMin = as.character(KDIGOMin),
+         J809worst = case_when(J809C == 1 ~ 'severe',
+                               J809B == 1 ~ 'moderate',
+                               J809A == 1 ~ 'mild',
+                               (J809X+J809A+J809B+J809C) == 0 ~ 'none',
+                               J809X == 1 ~ as.character(NA)
+                               ),
+         Mortality30days = recode(Deceased, Yes = TRUE, No = FALSE),
+         DaysToDeath = as.Date(OffRegistryDate) - as.Date(AdmissionTime) - (`DaysFromDischargeToOff-registry/Diseased` %>% parse_number()) 
+         ) %>% 
+  select(-c(PersonalID,
+            Deceased,
+            ArrivalBMI,
+            BMIover30,
+            RiskObesity,
+            NumberOfICUTransfers,
+            SAPS3TimeInHospital,
+            J809X,
+            J809A,
+            J809B,
+            J809C,
+            `DG021 min`,
+            `DG023 min`,
+            `DG028 min`,
+            `SR320 min`,
+            `DV023 days`,
+            `DR020 min`,
+            CovidMedicineLopinavir,
+            CovidMedicineLopinavirRitonavir,
+            OffRegistryDate,
+            AdmissionTime,
+            `DaysFromDischargeToOff-registry/Diseased`
+         )) 
+
+write_csv(swecovdata,'SweCovICU_AnalysedData.csv')
+
+
+```
+
+## Table 1
+
+```{r echo=FALSE}
+dfSummary(swecovdata) %>% view()
+```
+
+
