@@ -20,7 +20,7 @@ library(summarytools)
 # read in the data
 ```{r}
 
-datafile <- 'Raw data/MichelleChew_SweCOVID ICU Study_Unique_25Jun_SM_smallerrorsfixed_mc30jun_npwd.xlsx'
+datafile <- 'Raw data/MichelleChew_SweCOVID ICU Study_Unique_25Jun_SM_smallerrorsfixed_mc30jun_pb1Jul_npwd.xlsx'
 basicdata <- read_excel(datafile, na='NULL', sheet = 'Basic data') 
 
 diagnosisdata <- read_excel(datafile, na='NULL', sheet = 'AllDiagnoses', range = 'A1:TY1609')
@@ -240,7 +240,8 @@ swecovdata <- comorbiddata %>%
             OffRegistryDate,
             AdmissionTime,
             `DaysFromDischargeToOff-registry/Diseased`
-         )) 
+         )) %>% 
+  filter(!is.na(Mortality30days))
 
 write_csv(swecovdata,'SweCovICU_AnalysedData.csv')
 
