@@ -278,8 +278,15 @@ table3steps <- tibble(
                       )
 
 multivardata <- table3data %>% 
-  select(Mortality30days, 
+  select(Mortality30days,
+         `Age Group`,
+         Sex,
+         `SAPS III score`,
+         Obesity,
+         `Diabetes Mellitus`,
+         Hypertension,
          `Chronic heart diseases`, 
+         `Chronic lung disease`, 
          `Chronic renal disease`, 
          `Immunosuppression`, 
          `Time from symptom onset to ICU`, 
@@ -301,7 +308,7 @@ Nmulti <- multivardata %>% nrow()
 
 table3_labels <- function(x) {
   if (is.numeric(x)) {
-    output <- 'Per increase of '
+    output <- 'Continuous. OR per increase of '
   } else {
     t <- tibble(v = x) %>%
       filter(!is.na(v)) %>% 
@@ -338,18 +345,26 @@ univar <- function(dv, iv, digits =1) {
   output
 }
 
-multimodel <- glm(Mortality30days ~ `Chronic heart diseases` +
-                   `Chronic renal disease` + 
-                   `Immunosuppression` + 
-                   `Time from symptom onset to ICU` + 
-                   `Acute respiratory failure` + 
-                   `Invasive mechanical ventilation` + 
-                   `Noninvasive mechanical ventilation` + 
-                   HFNO + 
-                   `Prone positioning` + 
-                   `Specific pharmacotherapy*` + 
-                   CRRT + 
-                   `Transfer to other ICU`,
+multimodel <- glm(Mortality30days ~
+                    `Age Group` +
+                     Sex +
+                     `SAPS III score` +
+                     Obesity +
+                     `Diabetes Mellitus` +
+                     Hypertension +
+                     `Chronic heart diseases` + 
+                     `Chronic lung disease` + 
+                     `Chronic renal disease` + 
+                     `Immunosuppression` + 
+                     `Time from symptom onset to ICU` + 
+                     `Acute respiratory failure` + 
+                     `Invasive mechanical ventilation` + 
+                     `Noninvasive mechanical ventilation` + 
+                     HFNO + 
+                     `Prone positioning` + 
+                     `Specific pharmacotherapy*` + 
+                     CRRT + 
+                     `Transfer to other ICU`,
               family=binomial(link="logit"),
               data = table3data)
 
@@ -369,7 +384,7 @@ multivarResults <- exp(cbind(coef(multimodel), confint(multimodel))) %>%
 
 multivar <- function(iv,ivclass) {
   result <- multivarResults %>% 
-    filter(str_detect(v, iv))
+    filter(str_detect(v, iv) & iv!='Age')
   if (nrow(result) > 0) {
     output <- paste0(result$OR, ' (', result$Q1, ', ', result$Q3,')',result$sig) %>%
       paste0(collapse = '<br>') 
