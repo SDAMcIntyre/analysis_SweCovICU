@@ -72,7 +72,7 @@ table1data <- swecovdata %>%
          `ICU LOS (days)` = ICUDays, 
          `Discharge destination after ICU` = DischargedTo, 
          `Acute Respiratory Failure ` = J809worst, 
-         `AKI` = KDIGOMin, 
+         `Acute Kidney Injury` = KDIGOMin, 
          `ICU mortality` = CareResult, 
          `30-day mortality` = Mortality30days)
 
@@ -173,21 +173,25 @@ table2results <- table2data %>%
   ) %>% 
   unnest(fisher.result)
 
-# xtabs(  ~ Mortality30days + `Invasive mechanical ventilation n (%)`, table2data)
-
 table2 <- table2results %>% 
   mutate(
     All = if_else(AllN > 20, 
                   paste0(AllN,' (', round(100*AllN/`Number with data`,1), '%)'),
                   '< 20'),
     Survivors = if_else(SurvivorsN > 10 & `Non-survivorsN` > 10, 
-                  paste0(SurvivorsN, ' (', round(100*SurvivorsN/AllSurvivors,1), '%)'),
+                  paste0(SurvivorsN,'/',
+                         AllSurvivors, 
+                         ' (', round(100*SurvivorsN/AllSurvivors,1), '%)'
+                         ),
                   '-'),
     `Non-survivors` = if_else(SurvivorsN > 10 & `Non-survivorsN` > 10, 
-                  paste0(`Non-survivorsN`, ' (', round(100*`Non-survivorsN`/AllNonSurvivors,1), '%)'),
+                  paste0(`Non-survivorsN`,'/',
+                         AllNonSurvivors, 
+                         ' (', round(100*`Non-survivorsN`/AllNonSurvivors,1), '%)'
+                         ),
                   '-'),
     `p-value` = if_else(SurvivorsN > 10 & `Non-survivorsN` > 10, 
-                  as.character(round(p.value,4)),
+                  if_else(p.value < 0.001, '< 0.001', as.character(round(p.value,3))),
                   '-')
     ) %>% 
   select(Treatment, `Number with data`, All, Survivors, `Non-survivors`, `p-value`) 
@@ -204,21 +208,25 @@ modeldays <- glm(Mortality30days ~ InvasiveMechVentDays,
                         data = table2data)
 table2 %>% 
   filter(Treatment == 'Invasive mechanical ventilation n (%)') %>% 
-  bind_rows(table2data %>%
-              summarise(
-                Treatment = 'No. days of invasive mechanical ventilation median [IQR]',
-                `Number with data` = sum(!is.na(InvasiveMechVentDays)),
-                All = quant_values(InvasiveMechVentDays),
-                Survivors = if_else(Mortality30days, 
-                                as.numeric(NA),
-                                InvasiveMechVentDays) %>% quant_values(),
-                `Non-survivors` = if_else(Mortality30days,
-                                      InvasiveMechVentDays,
-                                      as.numeric(NA)) %>% quant_values(),
-                `p-value` = as.character(round(coef(summary(modeldays))[2,4],4))
-            )) %>% 
-  bind_rows(table2 %>% 
-  filter(Treatment != 'Invasive mechanical ventilation n (%)')) %>% 
+  bind_rows(
+    
+    table2data %>%
+      summarise(
+        Treatment = 'No. days of invasive mechanical ventilation median (IQR)',
+        `Number with data` = sum(!is.na(InvasiveMechVentDays)),
+        All = quant_values(InvasiveMechVentDays),
+        Survivors = if_else(Mortality30days, as.numeric(NA), InvasiveMechVentDays) %>%
+          quant_values(),
+        `Non-survivors` = if_else(Mortality30days, InvasiveMechVentDays, as.numeric(NA)) %>% 
+          quant_values(),
+                p = coef(summary(modeldays))[2,4],
+                `p-value` = if_else(p < 0.001, '< 0.001',as.character(round(p,3)))
+            ) %>% 
+              select(-p)
+            
+    ) %>% 
+  bind_rows(table2 %>%
+              filter(Treatment != 'Invasive mechanical ventilation n (%)')) %>% 
   kable(escape = F) %>% kable_styling(full_width = F, bootstrap_options = 'condensed')
 
 ```
