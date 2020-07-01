@@ -1,18 +1,17 @@
 ---
 title: "SweCovICU Table 1"
 author: "Sarah McIntyre"
-date: "29/06/2020"
+date: "1/07/2020"
 output:
   html_notebook: default
   html_document:
     df_print: paged
 ---
 
-```{r setup, include=FALSE}
+```{r setup}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(readxl)
-library(summarytools)
 library(knitr)
 library(kableExtra)
 library(broom)
@@ -46,7 +45,7 @@ swecovdata <- read_csv('SweCovICU_AnalysedData.csv',
 
 # Table 1
 
-```{r echo=FALSE}
+```{r}
 
 table1data <- swecovdata %>% 
   select(Age, 
@@ -133,7 +132,7 @@ table1data %>%
 
 # Table 2
 
-```{r echo=FALSE}
+```{r}
 
 table2data <- swecovdata %>% 
   # put them in order
@@ -266,7 +265,7 @@ table3steps <- tibble(
                        Variable == 'SAPS III score' ~ '20 points',
                        Variable == 'SOFA score' ~ '10 points',
                        Variable == 'Time from symptom onset to ICU' ~ '14 days',
-                       Variable == 'PAO2/FIO2 on admission' ~ '10 UNITS???',
+                       Variable == 'PAO2/FIO2 on admission' ~ '10 mmHg',
                        TRUE ~ '')
                       )
 
