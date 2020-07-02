@@ -262,17 +262,17 @@ table3data <- swecovdata %>%
          CRRT, 
          `Transfer to other ICU` = ICUtransferred) %>% 
   mutate(Age = Age/20,
-         `SAPS III score` = `SAPS III score`/20,
-         `SOFA score` = `SOFA score`/10,
-         `Time from symptom onset to ICU` = `Time from symptom onset to ICU`/14,
+         `SAPS III score` = `SAPS III score`/5,
+         `SOFA score` = `SOFA score`/1,
+         `Time from symptom onset to ICU` = `Time from symptom onset to ICU`/7,
          `PAO2/FIO2 on admission` = `PAO2/FIO2 on admission`/10)
 
 table3steps <- tibble(
   Variable = names(table3data)[names(table3data)!="Mortality30days"],
   UnitStep = case_when(Variable == 'Age' ~ '20 years',
-                       Variable == 'SAPS III score' ~ '20 points',
-                       Variable == 'SOFA score' ~ '10 points',
-                       Variable == 'Time from symptom onset to ICU' ~ '14 days',
+                       Variable == 'SAPS III score' ~ '5 points',
+                       Variable == 'SOFA score' ~ '1 point',
+                       Variable == 'Time from symptom onset to ICU' ~ '7 days',
                        Variable == 'PAO2/FIO2 on admission' ~ '10 mmHg',
                        TRUE ~ '')
                       )

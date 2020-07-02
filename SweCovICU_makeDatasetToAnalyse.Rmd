@@ -14,13 +14,16 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(readxl)
 library(summarytools)
+library(janitor)
+library(knitr)
+library(kableExtra)
 
 ```
 
 # read in the data
 ```{r}
 
-datafile <- 'Raw data/MichelleChew_SweCOVID ICU Study_Unique_25Jun_SM_smallerrorsfixed_mc30jun_pb1Jul_npwd.xlsx'
+datafile <- 'Raw data/MichelleChew_SweCOVID ICU Study_Unique_1july_finalfinalfinal_npwd.xlsx'
 basicdata <- read_excel(datafile, na='NULL', sheet = 'Basic data') 
 
 diagnosisdata <- read_excel(datafile, na='NULL', sheet = 'AllDiagnoses', range = 'A1:TY1609')
@@ -48,7 +51,12 @@ comorbiddata <- SIRIdata %>%
            RiskChronKidneyDisease,
            RiskChronicLiverDisease,
            RiskNeuroMuscDisease,
-           RiskReducedImmuneDefence)) %>% 
+           RiskReducedImmuneDefence,
+           RiskObesity)) %>% 
+  full_join(basicdata %>% select(c(PersonalID, ArrivalBMI))) %>% 
+  mutate(BMIover30 = as.numeric(ArrivalBMI > 30),
+         RiskObesityToUse = coalesce(BMIover30, RiskObesity)) %>% 
+  select(-c(ArrivalBMI,BMIover30)) %>% 
       pivot_longer(cols = -c(PersonalID),
                    names_to = c('Comorbidity')) %>% 
       group_by(PersonalID) %>%
@@ -245,6 +253,9 @@ swecovdata <- comorbiddata %>%
 
 write_csv(swecovdata,'SweCovICU_AnalysedData.csv')
 
+# swecovdata %>%
+#   group_by(DischargedTo,CareResult,Mortality30days) %>%
+#   tally() %>% kable() %>% kable_styling(full_width = F)
 
 ```
 
