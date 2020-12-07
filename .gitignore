@@ -2,3 +2,11 @@
 .Rhistory
 .RData
 .Ruserdata
+*.xlsx
+*.html
+Raw data\*
+SweCovICU_Table3.Rmd
+SweCovICU_Table2.Rmd
+SweCovICU_Table1.Rmd
+*update*
+coxhazards.R

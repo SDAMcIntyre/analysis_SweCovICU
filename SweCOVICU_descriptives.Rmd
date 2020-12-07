@@ -1,17 +1,13 @@
 ---
 title: "COVID19 patients in ICU in Sweden"
 output:
+  html_notebook: default
   html_document:
     df_print: paged
-  html_notebook: default
   word_document: default
 always_allow_html: yes
 ---
 
-```{r message=TRUE, warning=TRUE, include=FALSE}
-
-
-```
 
 ```{r message=TRUE, warning=TRUE, include=FALSE}
 knitr::opts_chunk$set(message=TRUE, warning=TRUE, eval=TRUE)
@@ -20,7 +16,6 @@ library(dplyr)
 library(readr)
 library(ggplot2)
 library(tidyr)
-library(formattable)
 library(knitr)
 library(kableExtra)
 library(patchwork)
@@ -54,15 +49,21 @@ summarise_qvars <- function(df,varnames) {
                            Q1 = ~quantile(., 1/4, na.rm = TRUE),
                            Q3 = ~quantile(., 3/4, na.rm = TRUE),
                            min = ~min(., na.rm = TRUE),
-                           max = ~max(., na.rm = TRUE))) %>% 
+                           max = ~max(., na.rm = TRUE),
+                           n = ~sum(!is.na(.)),
+                           missing.n = ~sum(is.na(.)),
+                    missing.pct = ~100*sum(is.na(.))/n()
+                           )) %>% 
   kable() %>% kable_styling(full_width = F)
 }
 
 summarise_dvar <- function(df,varname) {
   df %>% 
+    ungroup() %>% 
+    mutate(N = sum(!is.na({{varname}}))) %>% 
     group_by({{varname}}) %>% 
   summarise(n = n(), 
-            Percent = 100*n()/totalN) %>% 
+            Percent = 100*n()/N[1]) %>% 
   kable() %>% kable_styling(full_width = F)
 }
 
@@ -71,7 +72,8 @@ summarise_dvar <- function(df,varname) {
 # Read in the data
 ## N unique IDs
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-basicdata <- read_excel('Raw data/MichelleChew_SweCOVID ICU Study_Unique_pjb_npwd.xlsx', na='NULL', sheet = 'Basic data') %>% 
+datafile <- 'Raw data/MichelleChew_SweCOVID ICU Study_Unique_pjb_23jun_N809x_recoded_npwd.xlsx'
+basicdata <- read_excel(datafile, na='NULL', sheet = 'Basic data') %>% 
   mutate(Height = parse_number(Height),
          ArrivalWeight = parse_number(ArrivalWeight)) 
 
@@ -81,23 +83,24 @@ basicdata %>%
 
 totalN <- nrow(basicdata)
 
-diagnosisdata <- read_excel('Raw data/MichelleChew_SweCOVID ICU Study_Unique_pjb_npwd.xlsx', na='NULL', sheet = 'AllDiagnosis', range = 'A1:TX1609')
+diagnosisdata <- read_excel(datafile, na='NULL', sheet = 'AllDiagnoses', range = 'A1:UB1609')
 
-SOFAdata <- read_excel('Raw data/MichelleChew_SweCOVID ICU Study_Unique_pjb_npwd.xlsx', na='NULL', sheet = 'SOFA', range = 'A1:BX1609')
+SOFAdata <- read_excel(datafile, na='NULL', sheet = 'SOFA', range = 'A1:BX1609')
 
-measuresdata <- read_excel('Raw data/MichelleChew_SweCOVID ICU Study_Unique_pjb_npwd.xlsx', na='NULL', sheet = 'Measures', range = 'A1:BC1609')
+measuresdata <- read_excel(datafile, na='NULL', sheet = 'Measures', range = 'A1:BC1609')
 
-# FiO2 appears twice
+SIRIdata <- read_excel(datafile, na='NULL', sheet = 'SIRI', range = 'A1:AZ1609')
+
 ```
 
 # Zoom call variables
 These are things that I couldn't identify in "Statistical analysis plan for "SweCOVID ICU study.docx" but I had made a note to do it in our zoom call
 
 ## Height
-I guess it's in metres
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 basicdata %>% 
-  summarise_missing('Height')
+  summarise_missing('Height') %>% 
+  kable() %>% kable_styling(full_width = F)
 
 basicdata %>% 
   group_by(Gender) %>% 
@@ -105,36 +108,444 @@ basicdata %>%
 
 basicdata %>% 
   ggplot(aes(x = Height, fill = Gender)) +
-  geom_histogram(binwidth = 0.05, alpha = 0.7)
+  geom_histogram(binwidth = 0.05, alpha = 0.7) +
+  labs(x = 'Height (metres)')
 ```
 
-## ArrivalWeight
-I guess it's in kilograms. <span style="color: red;">One person is 652kg though...???</span>
+## Arrival Weight
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 basicdata %>% 
-  summarise_missing('ArrivalWeight')
+  summarise_missing('ArrivalWeight') %>% 
+  kable() %>% kable_styling(full_width = F)
 
 basicdata %>% 
-  mutate(Weight200 = case_when(ArrivalWeight < 200 ~ '< 200',
-                               TRUE ~ as.character(ArrivalWeight))) %>% 
-  summarise_dvar(Weight200)
-
-basicdata %>% 
+  group_by(Gender) %>% 
   summarise_qvars(c('ArrivalWeight'))
 
 basicdata %>% 
-  ggplot(aes(x = ArrivalWeight)) +
-  geom_histogram()
+  ggplot(aes(x = ArrivalWeight, fill = Gender)) +
+  geom_histogram(binwidth = 5, alpha = 0.7) +
+  labs(x = 'Arrival Weight (kilograms')
 ```
 
-## Respiratory failure
+# Ventilation
+
+DG021 invasive mechanical ventilation 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+```
+
+DG023 noninvasive mechanical ventilation *descriptive only
+
+DG028 ? * descriptive only 
+
+DR020 dialysis * multiv. analysis 
+
+- these are not mutually exclusive
+
+## Medication
+are these variables different? OtherMedicineCovid CovidMedicineOther
+
+### Specific pharmacotherapy
+any yes in CovidMedicineKlorokinfosfat	CovidMedicineTocilizumab	CovidMedicineLopinavirRitonavir	CovidMedicineDarunavir	CovidMedicineLopinavir	CovidMedicineRemdesivir	CovidMedicineBaricitinib	CovidMedeicineSteroids
+
+### Chloroquine
+CovidMedicineKlorokinfosfat
+
+### Tocilizumab
+CovidMedicineTocilizumab
+
+### Lopinavir/Ritonavir
+any yes in CovidMedicineLopinavirRitonavir	or CovidMedicineLopinavir
+
+### Remsedivir 
+CovidMedicineRemdesivir
+
+CovidMedicineBaricitinib	
+
+### Steroids
+CovidMedeicineSteroids
+
+### Other
+any yes in CovidMedicineDarunavir CovidMedicineVitamineC CovidMedicineOther
+
+# Word doc variables
+The headings below are from the list in "Statistical analysis plan for "SweCOVID ICU study.docx" with some additional stuff - read comments for details
+
+## Age
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+basicdata %>% 
+  summarise_missing('Age') %>% 
+  kable() %>% kable_styling(full_width = F)
+```
+
+### Age Group
+Categorized data <50 years, 50-59 years, 60-69 years, 70-79 years and >80 years of age
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+basicdata %>% 
+  mutate(AgeGroup = case_when(Age < 50 ~ '<50',
+                              between(Age,50,59) ~ '50-59',
+                              between(Age,60,69) ~ '60-69',
+                              between(Age,70,79) ~ '70-79',
+                              Age >= 80 ~ '80+',
+                              TRUE ~ as.character(NA))
+         ) %>% 
+  group_by(AgeGroup) %>% 
+  summarise(minAge = min(Age), 
+            maxAge = max(Age), 
+            n = n(),
+            Percent = 100*n()/totalN) %>% 
+  kable() %>% kable_styling(full_width = F)
+
+```
+
+### Aged over 65
+Proportion of patients >65 years of age
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+basicdata %>% 
+  mutate(AgeOver65 = Age > 65) %>% 
+  summarise_dvar(AgeOver65)
+  
+```
+## Sex
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+basicdata %>% 
+  summarise_missing('Gender') %>% 
+  kable() %>% kable_styling(full_width = F)
+
+basicdata %>% 
+  summarise_dvar(Gender) 
+  
+```
+## SAPSIII score
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+basicdata %>% summarise_qvars(c('SAPS3TotalPoints')) 
+
+basicdata %>% 
+  ggplot(aes(x=SAPS3TotalPoints)) +
+  geom_histogram(binwidth = 3) 
+
+```
+
+## SOFA score on admission 
+sequential organ failure score
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+SOFAdata %>% 
+  summarise_qvars(c('SOFATotalPoint')) 
+
+SOFAdata %>% 
+  ggplot(aes(x=SOFATotalPoint)) +
+  geom_histogram(binwidth = 1) 
+
+```
+### SOFA score separating out the zeros
+Note that NAs are filtered out so the 'missing' values are 0. True missing values are reported above.
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+SOFAdata %>% 
+  filter(!is.na(SOFATotalPoint)) %>% 
+  mutate(SOFAmore.than.0 = SOFATotalPoint > 0) %>% 
+  summarise_dvar(SOFAmore.than.0) 
+
+SOFAdata %>% 
+  filter(!is.na(SOFATotalPoint)) %>% 
+  filter(SOFATotalPoint > 0) %>% 
+  summarise_qvars(c('SOFATotalPoint')) 
+
+SOFAdata %>% 
+  filter(SOFATotalPoint > 0) %>% 
+  ggplot(aes(x=SOFATotalPoint)) +
+  geom_histogram(binwidth = 1) 
+
+```
+
+## Comorbidities (any)
+MC: *"Comorbidities: this is highly dependent on how it is defined and SIR has a very broad definition. I think we should list hypertension, chronic heart disease (SIRI X), chronic lung disease (SIRI Y), diabetes (SIRI AD), chronic renal disease (SIRI AC), chronic hepatic disease (SIRI AB), chronic neuromuscular disease (SIRI AF), immunosuppression (SIRI Z). The incidence of ‘any comorbidity’ is any ‘yes’ among any of these."*
+
+Also N comorbidities
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+comorbiddata <- SIRIdata %>% 
+  select(c('PersonalID',
+           'RiskHypertension',
+           'RiskChronicHeartDisease',
+           'RiskChronicLungDisease',
+           'RiskDiabetes',
+           'RiskChronKidneyDisease',
+           'RiskChronicLiverDisease',
+           'RiskNeuroMuscDisease',
+           'RiskReducedImmuneDefence')) %>% 
+      pivot_longer(cols = -c(PersonalID),
+                   names_to = c('Comorbidity')) %>% 
+      group_by(PersonalID) %>%
+      summarise(RiskN = sum(value, na.rm = TRUE),
+                RiskAny = sign(sum(value, na.rm = TRUE)
+                               ))
+
+comorbiddata %>% 
+  group_by(RiskN) %>% 
+  summarise_dvar(RiskN) 
+
+comorbiddata %>% 
+  group_by(RiskAny) %>% 
+  summarise_dvar(RiskAny) 
+
+```	
+
+<span style="color: red;">I had noted these from the zoom conversation, but I suppose they aren't needed? </span>
++ Risk65	
++ RiskChronicHeartLungDisease 
++ RiskReducedImmuneDefence	
++ RiskChronicLiverKidneyDisease	
++ RiskOther
+
+## Hypertension
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+SIRIdata %>% 
+  summarise_dvar(RiskHypertension)
+
+```
+
+
+## Chronic Heart Disease
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+SIRIdata %>% 
+  summarise_dvar(RiskChronicHeartDisease)
+
+```	
+
+## Chronic Lung Disease
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+SIRIdata %>% 
+  summarise_dvar(RiskChronicLungDisease)
+```	
+	
+## Obesity 
+
+MC: *"SIRI data is not accurate. Could you please merge the SIRI data (AE) with Basic Data ‘Arrival BMI’ (AF) and create a new column= ‘Obesity To Use’. This will be any ‘yes’ in SIRI AE and/or any value =>30 in column AF in Basic data. "*
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# basicdata %>% 
+#   select(PersonalID, ArrivalBMI) %>% 
+#   mutate(BMIover30 = as.numeric(ArrivalBMI > 30) ) %>% 
+#   full_join(
+#     SIRIdata %>% 
+#       select(PersonalID, RiskObesity) 
+#   ) %>% 
+#   replace(BMIover30, is.na(BMIover30), 0) %>% 
+#   replace(is.na(RiskObesity), 0) %>% 
+#   mutate(RiskObesityToUse = BMIover30 + RiskObesity)
+
+
+
+```
+
+## Diabetes Mellitus
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+SIRIdata %>% 
+  summarise_dvar(RiskDiabetes) 
+
+```
+
+## Chronic Renal Disease
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+SIRIdata %>% 
+  summarise_dvar(RiskChronKidneyDisease) 
+
+```
+## Chronic Hepatic Disease
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+SIRIdata %>% 
+  summarise_dvar(RiskChronicLiverDisease) 
+
+```
+
+## Chronic Neuromuscular Disease
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+SIRIdata %>% 
+  summarise_dvar(RiskNeuroMuscDisease) 
+
+```
+
+## Immunosuppression
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+SIRIdata %>% 
+  summarise_dvar(RiskReducedImmuneDefence) 
+
+```
+
+## PaO2/FiO2 on admission
+
+PB: *"Now there is BN that is the lowest value for thrombocytes and BT that is the lowest value for oxygenationindex PaO2/FiO2."*
+
+MC: *"I matched any ‘1´ in this column with the PaO2/FiO2 values in Basic Data BT (‘oxygenation index to use’) as well as SOFA R ‘Oxygenation Index’ and AW ’Oxygenation index min’ . I took the lowest of the values in any of these cells to define the degree of ARDS. Where I was able I replaced J809X with J809A,B or C. I managed to recode 34 patients. I also changed J809X to one of the other J809 codes if any of these cells contained a ‘1’."*
+
+<span style="color: red;">I'm assuming Michelle's updates were applied to the same variable, 'OxygenationIndexToUse</span>'
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+basicdata %>% 
+  summarise_qvars('OxygenationIndexToUse') 
+
+basicdata %>% 
+  ggplot(aes(x=OxygenationIndexToUse)) +
+  geom_histogram() +scale_x_log10() +
+  plot_annotation(caption = 'The x axis is on a log scale')
+
+```
+## Time in hospital prior to ICU admission
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+basicdata %>% 
+  summarise_qvars('SAPS3TimeInHospital') 
+
+```
+
+### separating out the zeros
+Note that NAs are filtered out so the 'missing' values are 0. True missing values are reported above.
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+basicdata %>% 
+  filter(!is.na(SAPS3TimeInHospital)) %>% 
+  mutate(TIHmore.than.0 = SAPS3TimeInHospital > 0) %>% 
+  summarise_dvar(TIHmore.than.0) 
+
+basicdata %>% 
+  filter(!is.na(SAPS3TimeInHospital)) %>% 
+  filter(SAPS3TimeInHospital > 0) %>% 
+  summarise_qvars(c('SAPS3TimeInHospital')) 
+
+
+basicdata %>% 
+  filter(SAPS3TimeInHospital > 0) %>% 
+  ggplot(aes(x=SAPS3TimeInHospital)) +
+  geom_histogram(bins = 10) + scale_x_log10() +
+  plot_annotation(caption = 'The x axis is on a log scale')
+
+
+```
+
+## WCC on admission
+MC: 'SAPS3LeukocytesMax' 
+
+## Platelets on admission
+MC: 'TrombocytesToUse'
+
+## Symptom onset to ICU admission
+I converted those that had negative values to NA.
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+SymptomToICUdata <- SIRIdata %>% 
+  mutate(DaysToICUFromIllness = if_else(DaysToICUFromIllness < 0, 
+                                        as.numeric(NA), 
+                                        DaysToICUFromIllness)) 
+SymptomToICUdata %>% 
+  summarise_qvars('DaysToICUFromIllness') 
+
+SymptomToICUdata %>% 
+  ggplot(aes(x=DaysToICUFromIllness)) +
+  geom_histogram(binwidth = 1) 
+
+```
+
+## ICU length of stay
+variable 'ICUDays' in 'Basic data'
+Patrik: "add length of stay for patients that left the ICU alive?"
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+basicdata %>% 
+  summarise_missing('ICUDays') %>% 
+  kable() %>% kable_styling(full_width = F)
+
+basicdata %>% 
+  summarise_qvars('ICUDays') 
+
+basicdata %>% 
+  ggplot(aes(x=ICUDays)) +
+  geom_histogram(binwidth = 3) 
+
+```
+
+## Discharge destination
+MC: *I recoded the ‘Discharge to’ column (Z in basic data). Sorry I sent you a wrong file earlier today. The correct file is attached now. the The median ICU stay was 12 days. I recoded ‘Other hospital’ using a simple rule, based on ICU days, X, and ‘reason for discharge, Y’
+If X =<12 AND Y=medical indication or belonging there -> recoded to ‘other ICU’. If X>12 AND Y= medical indication or belonging there -> recoded to ‘unknown’. If Y=’lack of resources’ regardless of X -> recoded to ‘other ICU’. The recoded items are listed in red text. According to my quick counts:
++ ‘Other ICU’=97,  
++ ‘Unknown’ =29, 
++ ‘ not discharged’ = 42, 
++ ‘home’ =2, 
++ ‘ward’=1082
++ ‘dead’ = 356
+However these are likely to be be slightly inaccurate since the number of dead should be a bit higher. Could you check this new column Z against column AB ‘Care Result’? ‘Deceased’ in AB should be the same as ‘Deceased’ in Z. So you may pick up a few more that way.*
+
+'DischargedTo'
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+basicdata %>%   
+  summarise_missing('DischargedTo')
+
+basicdata %>% 
+  summarise_dvar(`DischargedTo`)
+
+```
+## Other ICU
+transfer to other ICUs
+
+Patrik: * "new column H with Number of ICU transfers and column Y with Reason for ICU transfer, being the first discharge reason. The last discharge reason is in column AA."*
+
+### 'NumberOfICUTransfers'
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+basicdata %>%   
+  summarise_missing('NumberOfICUTransfers')
+
+basicdata %>% 
+  summarise_dvar(NumberOfICUTransfers)
+
+```
+### 'ReasonForICUTransfer (First discharge reason)'
+There are some patients that have a discharge reason but 0 transfers recorded. This means they were discharged and not transferred. ('ReasonForICUTransfer (First discharge reason)' and 'DischargeReason (Last discharge reason)' should be the same  in these patients - double check.)
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+basicdata %>%   
+  summarise_missing('ReasonForICUTransfer (First discharge reason)') %>% 
+  kable() %>% kable_styling(full_width = F)
+
+basicdata %>%   
+  summarise_dvar(`ReasonForICUTransfer (First discharge reason)`)
+
+basicdata %>% 
+  group_by(NumberOfICUTransfers) %>% 
+  summarise(n = n(), 
+            Percent = 100*n()/totalN, 
+            missing.reason = sum(is.na(`ReasonForICUTransfer (First discharge reason)`))) %>% 
+  kable() %>% kable_styling(full_width = F)
+
+basicdata %>% 
+  ggplot(aes(x = NumberOfICUTransfers)) +
+  facet_wrap(. ~ `ReasonForICUTransfer (First discharge reason)`, scales = 'free') +
+  geom_histogram(binwidth = 1) +
+  plot_annotation(caption = 'Note different y-axis scales')
+```
+
+## Died
+'CareResult', result of ICU care
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# DaysOffRegistryAfterAdmission
+
+basicdata %>%   
+  summarise_missing('CareResult') %>% 
+  kable() %>% kable_styling(full_width = F)
+
+basicdata %>% 
+  summarise_dvar(CareResult)
+```
+
+## Respiratory failure (ARDS)
 
 J809A	J809B	J809C	J809X
 
 A mild, B moderate, C severe, X not specified
 
- - not mutually exclusive, take the worst
+ - not mutually exclusive, I have taken the worst
 
+SAPS3 ventilator use variable 'SAPS3Ventilator'
+
+<span style="color: red;">Using the other variable now, right? </span>
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 
 respfailvars <- c('J809A',	'J809B',	'J809C',	'J809X')
@@ -157,14 +568,20 @@ diagnosisdata %>%
 
 ```
 
-## Renal failure 
-NV N179 acute renal failure unspecified
 
-NU N178 other acute renal failure
+## AKI
+Renal failure 
 
-NT N170 acute renal failure with tubular necrosis  
+MC: *"The incidence of AKI according to KDIGO as calculated by Patrik was 46.3%. It is difficult to say if this is a true representation of its incidence since data was only available for 661 patients. Interestingly the frequency of KDIGO 3 was 17.4% (of 661 patients, column BX in SOFA) which fits in well with the 17.1% found in the ‘MeasuresText’ worksheet, which covers all 1608 patients." - yes, my estimate is different because I tried to extrapolate the missing data from the N17x variables. *
+
+Mc: *"Renal failure: is defined as any of N17x. Patrik has merged this with daily Creatinine values in SOFA, and entered this as a separate column BX in SOFA. I just too the data from here. You lost me on you calculation of estimated AKI!!! Sorry, bit slow. Are you happy to accept Patrik’s manual calculations?"* - I'm happy to do whatever you like, let's discuss.
+
++NV N179 acute renal failure unspecified
++NU N178 other acute renal failure
++NT N170 acute renal failure with tubular necrosis  
 
 KDIGO minimum
+<span style="color: red;">Something got messed up in an update to the data file, this code gives an error now. </span>
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 renalfailuredata <- diagnosisdata %>% 
   select(c('PersonalID','N179', 'N178', 'N170')) %>% 
@@ -173,6 +590,9 @@ renalfailuredata <- diagnosisdata %>%
             by = 'PersonalID') %>% 
   mutate(AnyN17x = N179 + N178 + N170 > 0,
          AnyKDIGOMin = KDIGOMin >0)
+
+renalfailuredata %>% 
+  summarise_dvar(AnyN17x)
 
 renalfailuredata %>% 
   summarise_missing(c('AnyN17x','AnyKDIGOMin')) %>% 
@@ -216,304 +636,34 @@ tibble(
   Percent = 100*n/totalN) %>% 
   kable() %>% kable_styling(full_width = F)
 ```
-# Ventilation
-
-DG021 invasive mechanical ventilation * include in multivariable analysis
-
-DG023 noninvasive mechanical ventilation *descriptive only
-
-DG028 ? * descriptive only 
-
-DR020 dialysis * multiv. analysis 
-
-- these are not mutually exclusive
-
-## Medication
-### OtherMedicineCovid	
-### CovidMedicineKlorokinfosfat	
-### CovidMedicineTocilizumab	
-### CovidMedicineLopinavirRitonavir	
-### CovidMedicineDarunavir	
-### CovidMedicineLopinavir	
-### CovidMedicineRemdesivir	
-### CovidMedicineBaricitinib	
-### CovidMedeicineSteroids	
-### CovidMedicineVitamineC	
-### CovidMedicineOther
-
-# Word doc variables
-The headings below are from the list in "Statistical analysis plan for "SweCOVID ICU study.docx" with some additional stuff - read comments for details
-
-## Age
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-basicdata %>% 
-  summarise_missing('Age') %>% 
-  kable() %>% kable_styling(full_width = F)
-```
-
-### Age Group
-Categorized data <50 years, 50-59 years, 60-69 years, 70-79 years and >80 years of age
-
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-# agelabels <- c('<50','50-59','60-69','70-79','80+') #%>% factor(levels = agelabels)
-basicdata %>% 
-  mutate(AgeGroup = case_when(Age < 50 ~ '<50',
-                              between(Age,50,59) ~ '50-59',
-                              between(Age,60,69) ~ '60-69',
-                              between(Age,70,79) ~ '70-79',
-                              Age >= 80 ~ '80+',
-                              TRUE ~ as.character(NA))
-         ) %>% 
-  group_by(AgeGroup) %>% 
-  summarise(minAge = min(Age), 
-            maxAge = max(Age), 
-            n = n(),
-            Percent = 100*n()/totalN) %>% 
-  kable() %>% kable_styling(full_width = F)
-
-```
-
-### Aged over 65
-Proportion of patients >65 years of age
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-basicdata %>% 
-  mutate(AgeOver65 = Age > 65) %>% 
-  summarise_dvar(AgeOver65)
-  
-```
-## Sex
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-basicdata %>% 
-  summarise_missing('Gender') %>% 
-  kable() %>% kable_styling(full_width = F)
-
-basicdata %>% 
-  summarise_dvar(Gender) 
-  
-```
-## SAPSIII score
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-basicdata %>% 
-  summarise_missing('SAPS3TotalPoints') %>% 
-  kable() %>% kable_styling(full_width = F)
-
-
-basicdata %>% summarise_qvars(c('SAPS3TotalPoints')) 
-
-basicdata %>% 
-  ggplot(aes(x=SAPS3TotalPoints)) +
-  geom_histogram(binwidth = 3) 
-
-```
-
-## SOFA score on admission (for those that are available)
-"SOFATotalPoint"
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-
-
-```
-
-## Comorbidities (any)
-<span style="color: red;">I took this as if they had any diagnosis. This is clearly not right because everyone has a diagnosis (it includes U071 = COVID19). So, should it be any of the diagnoses listed below? Or, which ones?</span>
-
-Also N comorbidities?
-
-<span style="color: red;">Not sure which heading the below variables match if any, I had noted them from the zoom conversation </span>
-
-Risk65	
-
-RiskChronicHeartLungDisease 
-
-RiskReducedImmuneDefence	
-
-RiskChronicLiverKidneyDisease	
-
-RiskChronicLiverDisease	
-
-RiskChronKidneyDisease	
-
-RiskOther
-
-
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-diagnosisdata %>% 
-  pivot_longer(cols = matches('[A-Z]{1}[0-9]{3}'), names_to = 'diagnosis', values_to = 'has') %>% 
-  group_by(PersonalID) %>% 
-  summarise(AnyDiagnosis = has %>% sum() %>% as.logical()) %>% 
-  summarise_dvar(AnyDiagnosis) 
-
-```
-
-## Hypertension
-RiskHypertension
-
-## Chronic Heart Disease
-RiskChronicHeartDisease	
-
-## Chronic Lung Disease
-RiskChronicLungDisease	
-
-## Obesity 
-RiskObesity	
-
--‘Obesity’ is listed both in the descriptive table and we will run it as a covariate in the multivariable analysis. I was surprised that the incidence of obesity was only 7% in SIRI and I think that is most likely due to underreporting. I doublechecked against the ‘Arrival BMI’ column AD, in the basic data worksheet. There were only 593 registe, and of these patients, 228 had a BMI>30 which is 38% and more in line with my clinical experience. Could I please ask you to double check and to merge this with the ‘RiskObesity’ column AE in the SIRI worksheet, Sarah? 
-
-## Diabetes Mellitus
-RiskDiabetes	
-
-## Chronic Renal Disease
-<span style="color: red;">Which Variable? </span>
-
-## Chronic Hepatic Disease
-<span style="color: red;">Which Variable? </span>
-
-## Chronic Neuromuscular Disease
-RiskNeuroMuscDisease
-
-## PaO2/FiO2 on admission
-
-Email from Patrik "Now there is BN that is the lowest value for thrombocytes and BT that is the lowest value for oxygenationindex PaO2/FiO2."
-
-I don't know what these terms mean, so I'm not sure about category matches, but I will include these variables:
-
-### 'TrombocytesToUse' 
-
-### 'OxygenationIndexToUse'
-
-## WCC on admission
-<span style="color: red;">Which Variable? </span>
-
-## Platelets on admission
-<span style="color: red;">Which Variable? </span>
-
-## Symptom onset to ICU admission
-Regarding days from symptoms to ICU admission there were about 10 patients with negative values, indicating that the symptoms started after ICU admission. These should just be entered as corrupt data. Most likely reporting error as these are typed in manually.
-
-## ICU length of stay
-variable 'ICUDays' in 'Basic data'
-Patrik: "add length of stay for patients that left the ICU alive?"
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-basicdata %>% 
-  summarise_missing('ICUDays') %>% 
-  kable() %>% kable_styling(full_width = F)
-
-basicdata %>% 
-  summarise_qvars('ICUDays') 
-
-basicdata %>% 
-  ggplot(aes(x=ICUDays)) +
-  geom_histogram(binwidth = 3) 
-
-```
-
-## Discharge destination
-<span style="color: red;">Correct variables? </span>
-
-### 'DischargeReason (Last discharge reason)'
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-basicdata %>%   
-  summarise_missing('DischargeReason (Last discharge reason)')
-
-basicdata %>% 
-  summarise_dvar(`DischargeReason (Last discharge reason)`)
-
-```
-
-### 'DischargedTo'
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-basicdata %>%   
-  summarise_missing('DischargedTo')
-
-basicdata %>% 
-  summarise_dvar(`DischargedTo`)
-
-```
-## Ward
-<span style="color: red;">Which variable?</span>
-
-## Other ICU
-transfer to other ICUs
-
-Patrik: "new column H with Number of ICU transfers and column Y with Reason for ICU transfer, being the first discharge reason. The last discharge reason is in column AA."
-
-### 'NumberOfICUTransfers'
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-basicdata %>%   
-  summarise_missing('NumberOfICUTransfers')
-
-basicdata %>% 
-  summarise_dvar(NumberOfICUTransfers)
-
-```
-### 'ReasonForICUTransfer (First discharge reason)'
-<span style="color: red;">There are some patients that have a discharge reason but 0 transfers recorded. I'm not sure how to interpret this.</span>
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-basicdata %>%   
-  summarise_missing('ReasonForICUTransfer (First discharge reason)') %>% 
-  kable() %>% kable_styling(full_width = F)
-
-basicdata %>% 
-  group_by(NumberOfICUTransfers) %>% 
-  summarise(n = n(), 
-            Percent = 100*n()/totalN, 
-            missing.reason = sum(is.na(`ReasonForICUTransfer (First discharge reason)`))) %>% 
-  kable() %>% kable_styling(full_width = F)
-
-basicdata %>% 
-  ggplot(aes(x = NumberOfICUTransfers)) +
-  facet_wrap(. ~ `ReasonForICUTransfer (First discharge reason)`, scales = 'free') +
-  geom_histogram(binwidth = 1) +
-  plot_annotation(caption = 'Note different y-axis scales')
-```
-
-## Home
-<span style="color: red;">Which variable?</span>
-
-## Died
-'Deceased' variable, meaning have they died, that we know of? No qualifiers like in the ICU etc.
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-# DaysOffRegistryAfterAdmission
-
-basicdata %>%   
-  summarise_missing('Deceased') %>% 
-  kable() %>% kable_styling(full_width = F)
-
-basicdata %>% 
-  summarise_dvar(Deceased)
-```
-
-## ARDS
-<span style="color: red;">Which variable?</span>
-
-## AKI
-<span style="color: red;">Which variable?</span>
 
 ## ICU mortality
-Only looking at those who died (Deceased = 'Yes'), how many days after ICU admission did they die?
-<span style="color: red;">Should be died in the ICU, need to exclude those that left and then died</span>
-
-PJB: Regarding days from discharge to off-registered there were some that had a negative value of 1-2 days, I presume that it could be patients that die late in the evening and gets officially discharged the day after. What do you think Michelle? Then its a outlier with a -747 days between discharge and off-registered, I dont have a explanation for this, there are two patients thats off-registered in 2018 for some reason.
-MC: Yes. Some patients don’t get registered until later for various reasons – eg. died during the night and nobody available to do the registration at that time, or it also happens at particularly busy times when registration in SIR occurs retrospectively.
+MC says: 'CareResult'
+<span style="color: red;">Same variable as 'Died' heading. Redundant?</span>
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 
-basicdata <- basicdata %>% 
-  mutate(DiedNDaysAfterAdmission = case_when(Deceased == 'Yes' ~ DaysOffRegistryAfterAdmission,
-                                             TRUE ~ as.numeric(NA)))
-  
-basicdata %>%   
-  summarise_missing('DiedNDaysAfterAdmission') %>% 
-  kable() %>% kable_styling(full_width = F)
-
-basicdata %>% 
-  summarise_qvars('DiedNDaysAfterAdmission') 
+# basicdata <- basicdata %>% 
+#   mutate(DiedNDaysAfterAdmission = case_when(Deceased == 'Yes' ~ DaysOffRegistryAfterAdmission,
+#                                              TRUE ~ as.numeric(NA)))
+#   
+# basicdata %>%   
+#   summarise_missing('DiedNDaysAfterAdmission') %>% 
+#   kable() %>% kable_styling(full_width = F)
+# 
+# basicdata %>% 
+#   summarise_qvars('DiedNDaysAfterAdmission') 
 
 ```
 
 ## 30-day mortality
 The number of patients that died within 30 days of ICU admission.
+'Deceased'
+<span style="color: red;">Not sure this is the right variable? But I think you calculated it separately anyway.</span>
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-
+basicdata %>% 
+  summarise_dvar(Deceased)
+  summarise_qvars(c('Deceased'))
 
 ```
 
@@ -523,13 +673,3 @@ The number of patients that died within 30 days of ICU admission.
 
 ## % patients still in ICU at 30 day follow up
 
-# Emails
-extra things that came up in the emails, not sure where they fit above
-
-## Time in Hospital (before first ICU admission)
-
-# To do - formatting etc.
-
-Add n to summary calculations of quantitative variables
-
-combine variables with similar information into a large table

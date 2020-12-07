@@ -118,6 +118,20 @@ vasodata <- SOFAdata %>%
 
 # make the analysis dataset
 ```{r}
+# Sensitivity analysis of patients admitted 6march- 5 april
+# If risk estimates of the sensitivity analysis differ compared to whole cohort then:
+# Log rank test for 30d mortality for patients admitted 6 march-5april vs 6 April-6May
+# I think that was it. 
+
+# timediffsec <- basicdata$AdmissionTime - basicdata$AdmissionRegistration
+# 
+# basicdata %>% 
+#   select(AdmissionTime, AdmissionRegistration) %>% 
+#   .[which(timediffsec != 0),] %>% View()
+# 
+# lubridate::seconds_to_period(max(timediffsec))
+
+# basicdata$AdmissionRegistration[1] >= "2020-03-06 00:00:00 UTC"
 
 swecovdata <- comorbiddata %>% 
   full_join(specpharmdata) %>% 
@@ -136,7 +150,7 @@ swecovdata <- comorbiddata %>%
                                     DischargedTo,
                                     CareResult,
                                     OffRegistryDate,
-                                    AdmissionTime,
+                                    AdmissionRegistration,
                                     `DaysFromDischargeToOff-registry/Diseased`))) %>% 
   full_join(measuresdata %>% select(c(PersonalID,
                                       `DG021 min`,
@@ -182,6 +196,7 @@ swecovdata <- comorbiddata %>%
                               TRUE ~ as.character(NA)),
          BMIover30 = as.numeric(ArrivalBMI > 30),
          RiskObesityToUse = coalesce(BMIover30, RiskObesity),
+         OxygenationIndexToUse = OxygenationIndexToUse*7.50062, # kPa -> mmHg
          nICUTransfersToUse = if_else(NumberOfICUTransfers >= 3,
                                       '3+', as.character(NumberOfICUTransfers)),
          InvasiveMechanicalVentilation = `DG021 min` > 0,
@@ -223,8 +238,18 @@ swecovdata <- comorbiddata %>%
                                (J809X+J809A+J809B+J809C) == 0 ~ 'none',
                                J809X == 1 ~ as.character(NA)
                                ),
+         `DaysFromDischargeToOff-registry/Diseased` = `DaysFromDischargeToOff-registry/Diseased` %>% 
+           parse_number(),
+         `DaysFromDischargeToOff-registry/Diseased` = if_else(`DaysFromDischargeToOff-registry/Diseased` < 0,
+                                                              as.numeric(NA), `DaysFromDischargeToOff-registry/Diseased`),
          Mortality30days = recode(Deceased, Yes = TRUE, No = FALSE),
-         DaysToDeath = as.Date(OffRegistryDate) - as.Date(AdmissionTime) - (`DaysFromDischargeToOff-registry/Diseased` %>% parse_number()) 
+         DaysToDeath = as.Date(OffRegistryDate) - as.Date(AdmissionRegistration) - (`DaysFromDischargeToOff-registry/Diseased`),
+         #6 march-5april vs 6 April-6May
+         AdmissionPeriod = case_when(as.Date(AdmissionRegistration) >= "2020-03-06" &
+                                       as.Date(AdmissionRegistration) <= "2020-04-05" ~ '6Mar-5Apr',
+                                     as.Date(AdmissionRegistration) >= "2020-04-06" &
+                                       as.Date(AdmissionRegistration) <= "2020-05-06" ~ '6Apr-6May',
+                                     TRUE ~ as.Date(AdmissionRegistration) %>% as.character())
          ) %>% 
   select(-c(PersonalID,
             Deceased,
@@ -246,7 +271,7 @@ swecovdata <- comorbiddata %>%
             CovidMedicineLopinavir,
             CovidMedicineLopinavirRitonavir,
             OffRegistryDate,
-            AdmissionTime,
+            AdmissionRegistration,
             `DaysFromDischargeToOff-registry/Diseased`
          )) %>% 
   filter(!is.na(Mortality30days))
@@ -254,12 +279,24 @@ swecovdata <- comorbiddata %>%
 write_csv(swecovdata,'SweCovICU_AnalysedData.csv')
 
 # swecovdata %>%
-#   group_by(DischargedTo,CareResult,Mortality30days) %>%
-#   tally() %>% kable() %>% kable_styling(full_width = F)
+#   filter(Mortality30days & is.na(DaysToDeath)) %>% 
+#   pull(PersonalID)
+
+# swecovdata %>% 
+#   filter(`DaysFromDischargeToOff-registry/Diseased` < 0)
+# 
+# swecovdata %>% 
+#   tabyl(BMIover30) %>% 
+#   adorn_totals() %>% 
+#   adorn_pct_formatting()
+# 
+# swecovdata %>% 
+#   group_by(BMIover30, RiskObesity) %>% 
+#   tally()
 
 ```
 
-## Table 1
+# Summary table
 
 ```{r echo=FALSE}
 dfSummary(swecovdata) %>% view()

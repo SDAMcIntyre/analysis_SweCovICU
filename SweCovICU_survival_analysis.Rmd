@@ -4,36 +4,45 @@ output: html_notebook
 ---
 
 
-```{r}
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(readxl)
-library(broom)
 library(knitr)
 library(kableExtra)
-library(lme4)
-library(janitor)
+library(broom)
 
-#### Read in the data ####
-datafile <- 'Raw data/MichelleChew_SweCOVID ICU Study_Unique_25Jun_SM_smallerrorsfixed_npwd.xlsx'
-basicdata <- read_excel(datafile, na='NULL', sheet = 'Basic data') %>% 
-  mutate(Height = parse_number(Height),
-         ArrivalWeight = parse_number(ArrivalWeight)) 
+# Read in the data
+swecovdata <- read_csv('SweCovICU_AnalysedData.csv',
+                       col_types = cols(
+                         .default = col_logical(),
+                         Age = col_double(),
+                         Gender = col_character(),
+                         SAPS3TotalPoints = col_double(),
+                         OxygenationIndexToUse = col_double(),
+                         ICUDays = col_double(),
+                         DischargedTo = col_character(),
+                         CareResult = col_character(),
+                         `DG021 days` = col_double(),
+                         SOFATotalPoint = col_double(),
+                         KDIGOMin = col_character(),
+                         DaysToICUFromIllness = col_double(),
+                         AgeGroup = col_character(),
+                         nICUTransfersToUse = col_character(),
+                         InvasiveMechVentDays = col_double(),
+                         SAPS3TimeInHospitalNo0 = col_double(),
+                         J809worst = col_character(),
+                         DaysToDeath = col_double(),
+                         AdmissionPeriod = col_character()
+                         )) %>% 
+  mutate(J809worst = J809worst %>% factor(levels = c('none', 'mild','moderate','severe')))
 
-totalN <- nrow(basicdata)
-
-diagnosisdata <- read_excel(datafile, na='NULL', sheet = 'AllDiagnoses', range = 'A1:UC1609')
-
-SOFAdata <- read_excel(datafile, na='NULL', sheet = 'SOFA', range = 'A1:BX1609')
-
-measuresdata <- read_excel(datafile, na='NULL', sheet = 'Measures', range = 'A1:BC1609')
-
-SIRIdata <- read_excel(datafile, na='NULL', sheet = 'SIRI', range = 'A1:AZ1609')
 
 ```
 
 No, ‘Days off registry After Admission’ may not be accurate since there might be a lag before the patient is ‘deregistered’. There should be a variable ‘Days to death’ but I can’t find it. Perhaps we didn’t do it? What you need to do is to create an extra column with ‘Days to death’ defined as ‘Off registry date (column AJ)’ minus ‘admission date (column V)’ minus DaysFromDischargeToOff-registry/Diseased (column AI)‘. This is a bit of a pain. Sorry about that. 
 
-```{r echo=FALSE}
+```{r}
 
 summarise_qvars <- function(df,varnames) {
   df %>% 
@@ -50,23 +59,13 @@ summarise_qvars <- function(df,varnames) {
   kable() %>% kable_styling(full_width = F)
 }
 
-survivaldata <- basicdata %>% 
-  select(PersonalID,
-         OffRegistryDate,
-         AdmissionTime,
-         `DaysFromDischargeToOff-registry/Diseased`
-         ) %>% 
-  mutate(OffRegDeceased = `DaysFromDischargeToOff-registry/Diseased` %>% parse_number(),
-         DaysToDeath = as.Date(OffRegistryDate) - as.Date(AdmissionTime) - OffRegDeceased) 
-  # tabyl(DaysToDeathValid,Deceased) %>%
-  # adorn_totals(c('col','row')) %>%
-  # adorn_title() %>%
-  # kable() %>% kable_styling(full_width = F)
+swecovdata %>% 
+  mutate(DaysToDeathValid = !is.na(DaysToDeath)) %>% 
+  group_by(Mortality30days, DaysToDeathValid,AdmissionPeriod) %>% 
+  tally() %>% 
+  kable() %>% kable_styling(full_width = F)
 
-survivaldata %>% 
-  summarise_qvars('DaysToDeath')
-
-survivaldata$DaysToDeath %>% head()
-
+library(survival)
+library(survminer)
 ```
 
