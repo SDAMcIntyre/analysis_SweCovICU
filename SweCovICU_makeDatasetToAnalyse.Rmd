@@ -1,7 +1,7 @@
 ---
 title: "SweCovICU data management"
 author: "Sarah McIntyre"
-date: "June 2020"
+date: "December 2020"
 output:
   html_document:
     df_print: paged
@@ -23,7 +23,7 @@ library(kableExtra)
 # read in the data
 ```{r}
 
-datafile <- 'Raw data/MichelleChew_SweCOVID ICU Study_Unique_1july_finalfinalfinal_npwd.xlsx'
+datafile <- '../Raw data/SweCOVID_ICU_201207_nopwd.xlsx'
 basicdata <- read_excel(datafile, na='NULL', sheet = 'Basic data') 
 
 diagnosisdata <- read_excel(datafile, na='NULL', sheet = 'AllDiagnoses', range = 'A1:TY1609')
@@ -133,10 +133,12 @@ vasodata <- SOFAdata %>%
 
 # basicdata$AdmissionRegistration[1] >= "2020-03-06 00:00:00 UTC"
 
+# variables created above
 swecovdata <- comorbiddata %>% 
   full_join(specpharmdata) %>% 
   full_join(otherpharmdata) %>% 
   full_join(vasodata) %>% 
+  # select variables from basic data sheet
   full_join (basicdata %>% select(c(PersonalID,
                                     Deceased,
                                     Age,
@@ -152,6 +154,7 @@ swecovdata <- comorbiddata %>%
                                     OffRegistryDate,
                                     AdmissionRegistration,
                                     `DaysFromDischargeToOff-registry/Diseased`))) %>% 
+  # select variables from measuers data sheet
   full_join(measuresdata %>% select(c(PersonalID,
                                       `DG021 min`,
                                       `DG021 days`,
@@ -160,9 +163,11 @@ swecovdata <- comorbiddata %>%
                                       `SR320 min`,
                                       `DV023 days`,
                                       `DR020 min`))) %>% 
+  # select variables from SOFA sheet
   full_join(SOFAdata %>% select(c(PersonalID,
                                   SOFATotalPoint,
                                   KDIGOMin))) %>% 
+  # select variables from SIRI sheet
   full_join(SIRIdata %>% select(c(PersonalID,
                                   # specific
                                   CovidMedicineKlorokinfosfat,
@@ -182,11 +187,13 @@ swecovdata <- comorbiddata %>%
                                   RiskNeuroMuscDisease,
                                   RiskReducedImmuneDefence,
                                   DaysToICUFromIllness))) %>%
+  # select variables from diagnoses sheet
   full_join(diagnosisdata %>% select(c(PersonalID,
                                        J809A,
                                        J809B,
                                        J809C,
                                        J809X))) %>% 
+  # created/calculated variables
   mutate(Age65plus = Age >= 65,
          AgeGroup = case_when(Age < 50 ~ '<50',
                               between(Age,50,59) ~ '50-59',
@@ -194,11 +201,16 @@ swecovdata <- comorbiddata %>%
                               between(Age,70,79) ~ '70-79',
                               Age >= 80 ~ '80+',
                               TRUE ~ as.character(NA)),
+         # BMI / obesity
          BMIover30 = as.numeric(ArrivalBMI > 30),
-         RiskObesityToUse = coalesce(BMIover30, RiskObesity),
+         BMI40plus = as.numeric(ArrivalBMI >= 40),
+         RiskObesityOld30 = coalesce(BMIover30, RiskObesity),
+         RiskObesityNew40 = coalesce(BMI40plus, RiskObesity),
+         
          OxygenationIndexToUse = OxygenationIndexToUse*7.50062, # kPa -> mmHg
          nICUTransfersToUse = if_else(NumberOfICUTransfers >= 3,
                                       '3+', as.character(NumberOfICUTransfers)),
+         # ventilation
          InvasiveMechanicalVentilation = `DG021 min` > 0,
          InvasiveMechVentDays = if_else(`DG021 days`==0,
                                         as.numeric(NA), `DG021 days`),
@@ -207,6 +219,8 @@ swecovdata <- comorbiddata %>%
          CarePronePatient = `SR320 min` > 0,
          ECMO = `DV023 days` >0,
          CRRT = `DR020 min` > 0,
+         
+         # medication
          LopinavirOrRitonavir = pmax(CovidMedicineLopinavir,
                                     CovidMedicineLopinavirRitonavir,
                                     na.rm = TRUE) %>% as.logical(),
@@ -214,6 +228,7 @@ swecovdata <- comorbiddata %>%
          CovidMedicineRemdesivir = as.logical(CovidMedicineRemdesivir),
          CovidMedicineTocilizumab = as.logical(CovidMedicineTocilizumab),
          CovidMedeicineSteroids = as.logical(CovidMedeicineSteroids),
+         
          ICUtransferred = NumberOfICUTransfers > 0,
          TIHmore.than.0 = SAPS3TimeInHospital > 0,
          SAPS3TimeInHospitalNo0 = if_else(SAPS3TimeInHospital > 0,
@@ -221,16 +236,20 @@ swecovdata <- comorbiddata %>%
          DaysToICUFromIllness = if_else(DaysToICUFromIllness < 0, 
                                         as.numeric(NA), 
                                         DaysToICUFromIllness),
+         
+         # comorbidities
          ComorbidityAny = as.logical(ComorbidityAny),
          RiskHypertension = as.logical(RiskHypertension),
          RiskChronicHeartDisease = as.logical(RiskChronicHeartDisease),
          RiskChronicLungDisease = as.logical(RiskChronicLungDisease),
-         RiskObesityToUse = as.logical(RiskObesityToUse),
+         RiskObesityOld30 = as.logical(RiskObesityOld30),
+         RiskObesityNew40 = as.logical(RiskObesityNew40),
          RiskDiabetes = as.logical(RiskDiabetes),
          RiskChronKidneyDisease = as.logical(RiskChronKidneyDisease),
          RiskChronicLiverDisease = as.logical(RiskChronicLiverDisease),
          RiskNeuroMuscDisease = as.logical(RiskNeuroMuscDisease),
          RiskReducedImmuneDefence = as.logical(RiskReducedImmuneDefence),
+         
          KDIGOMin = as.character(KDIGOMin),
          J809worst = case_when(J809C == 1 ~ 'severe',
                                J809B == 1 ~ 'moderate',
@@ -238,24 +257,32 @@ swecovdata <- comorbiddata %>%
                                (J809X+J809A+J809B+J809C) == 0 ~ 'none',
                                J809X == 1 ~ as.character(NA)
                                ),
-         `DaysFromDischargeToOff-registry/Diseased` = `DaysFromDischargeToOff-registry/Diseased` %>% 
-           parse_number(),
-         `DaysFromDischargeToOff-registry/Diseased` = if_else(`DaysFromDischargeToOff-registry/Diseased` < 0,
-                                                              as.numeric(NA), `DaysFromDischargeToOff-registry/Diseased`),
+         
+         # 30 day mortality and days to death
+         # problem triggered: argument "x" is missing, with no default
+         # but don't worry it's fine
+         `DaysFromDischargeToOff-registry/Diseased` = 
+           `DaysFromDischargeToOff-registry/Diseased` %>% parse_number(),
+         `DaysFromDischargeToOff-registry/Diseased` = 
+           if_else(`DaysFromDischargeToOff-registry/Diseased` < 0,
+                   as.numeric(NA), 
+                   `DaysFromDischargeToOff-registry/Diseased`),
          Mortality30days = recode(Deceased, Yes = TRUE, No = FALSE),
          DaysToDeath = as.Date(OffRegistryDate) - as.Date(AdmissionRegistration) - (`DaysFromDischargeToOff-registry/Diseased`),
+         
          #6 march-5april vs 6 April-6May
-         AdmissionPeriod = case_when(as.Date(AdmissionRegistration) >= "2020-03-06" &
-                                       as.Date(AdmissionRegistration) <= "2020-04-05" ~ '6Mar-5Apr',
-                                     as.Date(AdmissionRegistration) >= "2020-04-06" &
-                                       as.Date(AdmissionRegistration) <= "2020-05-06" ~ '6Apr-6May',
-                                     TRUE ~ as.Date(AdmissionRegistration) %>% as.character())
+         AdmissionPeriod = case_when(
+           as.Date(AdmissionRegistration) >= "2020-03-06" &
+             as.Date(AdmissionRegistration) <= "2020-04-05" ~ '6Mar-5Apr',
+           as.Date(AdmissionRegistration) >= "2020-04-06" &
+             as.Date(AdmissionRegistration) <= "2020-05-06" ~ '6Apr-6May',
+           TRUE ~ as.Date(AdmissionRegistration) %>% as.character())
          ) %>% 
   select(-c(PersonalID,
             Deceased,
-            ArrivalBMI,
-            BMIover30,
-            RiskObesity,
+            #ArrivalBMI,
+            #BMIover30,
+            #RiskObesity,
             NumberOfICUTransfers,
             SAPS3TimeInHospital,
             J809X,
@@ -273,7 +300,7 @@ swecovdata <- comorbiddata %>%
             OffRegistryDate,
             AdmissionRegistration,
             `DaysFromDischargeToOff-registry/Diseased`
-         )) %>% 
+         )) %>%
   filter(!is.na(Mortality30days))
 
 write_csv(swecovdata,'SweCovICU_AnalysedData.csv')
@@ -290,9 +317,32 @@ write_csv(swecovdata,'SweCovICU_AnalysedData.csv')
 #   adorn_totals() %>% 
 #   adorn_pct_formatting()
 # 
-# swecovdata %>% 
-#   group_by(BMIover30, RiskObesity) %>% 
-#   tally()
+swecovdata %>%
+  group_by(is.na(ArrivalBMI), RiskObesity) %>%
+  tally()
+
+swecovdata %>%
+  filter(ArrivalBMI >=40 & RiskObesity == 0) %>% 
+  pull(ArrivalBMI)
+
+swecovdata %>%
+  filter(ArrivalBMI <40 & RiskObesity == 1) %>% 
+  summarise(minBMI = min(ArrivalBMI),
+            maxBMI = max(ArrivalBMI))
+
+swecovdata %>% 
+  group_by(BMI40plus, RiskObesity) %>% 
+  tally()
+
+obesityplot <- swecovdata %>% 
+  mutate(ArrivalBMI = ArrivalBMI %>% parse_number(),
+         RiskObesity = RiskObesity %>% as.logical()) %>% 
+  ggplot(aes(x = ArrivalBMI, fill = RiskObesity)) +
+  facet_wrap(~RiskObesity, scales = 'free', ncol = 1) +
+  geom_histogram(binwidth = 5, colour = 'black') + 
+  coord_cartesian(xlim = c(0,80)) +
+  theme_bw()
+
 
 ```
 
