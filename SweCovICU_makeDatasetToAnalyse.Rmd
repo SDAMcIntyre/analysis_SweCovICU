@@ -24,15 +24,91 @@ library(kableExtra)
 ```{r}
 
 datafile <- '../Raw data/SweCOVID_ICU_201207_nopwd.xlsx'
-basicdata <- read_excel(datafile, na='NULL', sheet = 'Basic data') 
+basicsheet <- read_excel(datafile, na='NULL', sheet = 'Basic data') 
 
-diagnosisdata <- read_excel(datafile, na='NULL', sheet = 'AllDiagnoses', range = 'A1:TY1609')
+diagnosissheet <- read_excel(datafile, na='NULL', sheet = 'AllDiagnoses', range = 'A1:TY1609')
 
-SOFAdata <- read_excel(datafile, na='NULL', sheet = 'SOFA', range = 'A1:BX1609')
+SOFAsheet <- read_excel(datafile, na='NULL', sheet = 'SOFA', range = 'A1:BX1609')
 
-measuresdata <- read_excel(datafile, na='NULL', sheet = 'Measures', range = 'A1:BC1609')
+measuressheet <- read_excel(datafile, na='NULL', sheet = 'Measures', range = 'A1:BC1609')
 
-SIRIdata <- read_excel(datafile, na='NULL', sheet = 'SIRI', range = 'A1:AZ1609')
+SIRIsheet <- read_excel(datafile, na='NULL', sheet = 'SIRI', range = 'A1:AZ1609')
+
+
+```
+# select and calculate variables
+```{r}
+
+basicdata <- basicsheet %>%
+  select(c(PersonalID,
+           Deceased,
+           Age,
+           Gender,
+           SAPS3TotalPoints,
+           ArrivalBMI,
+           OxygenationIndexToUse,
+           NumberOfICUTransfers,
+           SAPS3TimeInHospital, 
+           ICUDays,
+           DischargedTo,
+           CareResult,
+           OffRegistryDate,
+           AdmissionRegistration,
+           `DaysFromDischargeToOff-registry/Diseased`))
+
+diagnosisdata <- diagnosissheet %>% 
+   select(c(PersonalID,
+           J809A,
+           J809B,
+           J809C,
+           J809X))
+
+SOFAdata <- SOFAsheet %>% 
+  select(c(PersonalID,
+          SOFATotalPoint,
+          KDIGOMin,
+          #vaso
+          Dopamin,
+          Adrenalin,
+          Noradrenalin,
+          Dobutamin,
+          Levosimendan,
+          Vasopressin))
+
+measuresdata <- measuressheet %>% 
+   select(c(PersonalID,
+            `DG021 min`,
+            `DG021 days`,
+            `DG023 min`,
+            `DG028 min`,
+            `SR320 min`,
+            `DV023 days`,
+            `DR020 min`))
+
+SIRIdata <- SIRIsheet %>% 
+  select(c(PersonalID,
+          # specific
+          CovidMedicineKlorokinfosfat,
+          CovidMedicineLopinavir,
+          CovidMedicineLopinavirRitonavir,
+          CovidMedicineRemdesivir,
+          CovidMedicineTocilizumab,
+          CovidMedeicineSteroids,
+          #other
+          CovidMedicineDarunavir,
+          CovidMedicineVitamineC,
+          CovidMedicineOther,
+          # comorbidities
+          RiskHypertension,
+          RiskChronicHeartDisease,
+          RiskChronicLungDisease,
+          RiskObesity,
+          RiskDiabetes,
+          RiskChronKidneyDisease,
+          RiskChronicLiverDisease,
+          RiskNeuroMuscDisease,
+          RiskReducedImmuneDefence,
+          DaysToICUFromIllness))
 
 
 ```
@@ -118,81 +194,17 @@ vasodata <- SOFAdata %>%
 
 # make the analysis dataset
 ```{r}
-# Sensitivity analysis of patients admitted 6march- 5 april
-# If risk estimates of the sensitivity analysis differ compared to whole cohort then:
-# Log rank test for 30d mortality for patients admitted 6 march-5april vs 6 April-6May
-# I think that was it. 
 
-# timediffsec <- basicdata$AdmissionTime - basicdata$AdmissionRegistration
-# 
-# basicdata %>% 
-#   select(AdmissionTime, AdmissionRegistration) %>% 
-#   .[which(timediffsec != 0),] %>% View()
-# 
-# lubridate::seconds_to_period(max(timediffsec))
-
-# basicdata$AdmissionRegistration[1] >= "2020-03-06 00:00:00 UTC"
-
-# variables created above
+# join datasets by PersonalID
 swecovdata <- comorbiddata %>% 
   full_join(specpharmdata) %>% 
   full_join(otherpharmdata) %>% 
   full_join(vasodata) %>% 
-  # select variables from basic data sheet
-  full_join (basicdata %>% select(c(PersonalID,
-                                    Deceased,
-                                    Age,
-                                    Gender,
-                                    SAPS3TotalPoints,
-                                    ArrivalBMI,
-                                    OxygenationIndexToUse,
-                                    NumberOfICUTransfers,
-                                    SAPS3TimeInHospital, 
-                                    ICUDays,
-                                    DischargedTo,
-                                    CareResult,
-                                    OffRegistryDate,
-                                    AdmissionRegistration,
-                                    `DaysFromDischargeToOff-registry/Diseased`))) %>% 
-  # select variables from measuers data sheet
-  full_join(measuresdata %>% select(c(PersonalID,
-                                      `DG021 min`,
-                                      `DG021 days`,
-                                      `DG023 min`,
-                                      `DG028 min`,
-                                      `SR320 min`,
-                                      `DV023 days`,
-                                      `DR020 min`))) %>% 
-  # select variables from SOFA sheet
-  full_join(SOFAdata %>% select(c(PersonalID,
-                                  SOFATotalPoint,
-                                  KDIGOMin))) %>% 
-  # select variables from SIRI sheet
-  full_join(SIRIdata %>% select(c(PersonalID,
-                                  # specific
-                                  CovidMedicineKlorokinfosfat,
-                                  CovidMedicineLopinavir,
-                                  CovidMedicineLopinavirRitonavir,
-                                  CovidMedicineRemdesivir,
-                                  CovidMedicineTocilizumab,
-                                  CovidMedeicineSteroids,
-                                  # comorbidities
-                                  RiskHypertension,
-                                  RiskChronicHeartDisease,
-                                  RiskChronicLungDisease,
-                                  RiskObesity,
-                                  RiskDiabetes,
-                                  RiskChronKidneyDisease,
-                                  RiskChronicLiverDisease,
-                                  RiskNeuroMuscDisease,
-                                  RiskReducedImmuneDefence,
-                                  DaysToICUFromIllness))) %>%
-  # select variables from diagnoses sheet
-  full_join(diagnosisdata %>% select(c(PersonalID,
-                                       J809A,
-                                       J809B,
-                                       J809C,
-                                       J809X))) %>% 
+  full_join(basicdata) %>% 
+  full_join(measuresdata) %>% 
+  full_join(SOFAdata) %>% 
+  full_join(SIRIdata) %>%
+  full_join(diagnosisdata) %>% 
   # created/calculated variables
   mutate(Age65plus = Age >= 65,
          AgeGroup = case_when(Age < 50 ~ '<50',
