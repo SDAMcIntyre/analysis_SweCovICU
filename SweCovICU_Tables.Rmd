@@ -691,6 +691,23 @@ prop.test(agemortdata$nDeceased, agemortdata$nTotal)
 
 ```
 
+Figure
+```{r}
+
+windows()
+swecovdata %>% 
+  tabyl(AgeGroup, Mortality30days) %>% 
+  adorn_percentages('row') %>% 
+  adorn_pct_formatting() %>% 
+  as_tibble() %>% 
+  ggplot(aes(x = AgeGroup, y = `TRUE`)) +
+  geom_bar(stat = 'identity') +
+  theme_classic(base_size = 14) +
+  labs(x = 'Age', y = '30 day mortality')
+
+```
+
+
 ## Chronic heart disease
 ```{r}
 swecovdata %>% 
@@ -789,6 +806,8 @@ Fisher's exact test, 30 day mortality
 fisher.test(xtabs(~ Mortality30days + ICUtransferred, swecovdata))
 
 ```
+
+
 
 # end
 
