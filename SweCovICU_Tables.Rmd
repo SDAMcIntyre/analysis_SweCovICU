@@ -18,7 +18,7 @@ library(broom)
 library(janitor)
 
 # Read in the data
-swecovdata <- read_csv('SweCovICU_AnalysedData.csv',
+swecovdata <- read_csv('../SweCovICU_AnalysedData.csv',
                        col_types = cols(
                          .default = col_logical(),
                           Age = col_double(),
@@ -42,7 +42,13 @@ swecovdata <- read_csv('SweCovICU_AnalysedData.csv',
                          )) %>% 
   # to make sure the values are presented in the logical order instead of alphabetical
   mutate(J809worst = J809worst %>% factor(levels = c('none', 'mild','moderate','severe')),
-         AdmissionPeriod = AdmissionPeriod %>% factor(levels = c('6Apr-6May', '6Mar-5Apr')))
+         AdmissionPeriod = AdmissionPeriod %>% factor(levels = c('6Apr-6May', '6Mar-5Apr')),
+         BMIcategory = BMIcategory %>% factor(levels = c('underweight', 
+                                                         'normal', 
+                                                         'overweight',
+                                                         'obesity class 1',
+                                                         'obesity class 2',
+                                                         'obesity class 3')))
 
 # functions for formatting numbers in 'text' format for table output
 textsignif <- function(x, digits) {

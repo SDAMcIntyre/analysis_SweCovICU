@@ -18,28 +18,17 @@ library(janitor)
 library(knitr)
 library(kableExtra)
 
+datafile <- '../Raw data/SweCOVID_ICU_201207_nopwd.xlsx'
+
 ```
 
 # read in the data
+
+## basic data - select and calculate variables
 ```{r}
 
-datafile <- '../Raw data/SweCOVID_ICU_201207_nopwd.xlsx'
-basicsheet <- read_excel(datafile, na='NULL', sheet = 'Basic data') 
-
-diagnosissheet <- read_excel(datafile, na='NULL', sheet = 'AllDiagnoses', range = 'A1:TY1609')
-
-SOFAsheet <- read_excel(datafile, na='NULL', sheet = 'SOFA', range = 'A1:BX1609')
-
-measuressheet <- read_excel(datafile, na='NULL', sheet = 'Measures', range = 'A1:BC1609')
-
-SIRIsheet <- read_excel(datafile, na='NULL', sheet = 'SIRI', range = 'A1:AZ1609')
-
-
-```
-# basic data - select and calculate variables
-```{r}
-
-basicdata <- basicsheet %>%
+basicdata <- 
+  read_excel(datafile, na='NULL', sheet = 'Basic data') %>%
   # select variables
   select(c(PersonalID,
            Deceased,
@@ -71,6 +60,13 @@ basicdata <- basicsheet %>%
                         TRUE ~ as.character(NA)),
    # BMI / obesity
    BMI40plus = as.numeric(ArrivalBMI >= 40),
+   BMIcategory = case_when(ArrivalBMI < 18.5 ~ 'underweight',
+                           ArrivalBMI >= 18.5 & ArrivalBMI < 25 ~ 'normal',
+                           ArrivalBMI >= 25 & ArrivalBMI < 30 ~ 'overweight',
+                           ArrivalBMI >= 30 & ArrivalBMI < 35 ~ 'obesity class 1',
+                           ArrivalBMI >= 35 & ArrivalBMI < 40 ~ 'obesity class 2',
+                           ArrivalBMI >= 40 ~ 'obesity class 3',
+                           ),
    nICUTransfers = if_else(NumberOfICUTransfers >= 3,
                                 '3+', as.character(NumberOfICUTransfers)),
    ICUtransferred = NumberOfICUTransfers > 0,
@@ -97,17 +93,22 @@ basicdata <- basicsheet %>%
      as.Date(AdmissionRegistration) >= "2020-04-06" &
        as.Date(AdmissionRegistration) <= "2020-05-06" ~ '6Apr-6May',
      TRUE ~ as.Date(AdmissionRegistration) %>% as.character() )
-  )
+  ) %>% 
+  select(-c(OxygenationIndexToUse))
 
 # basicdata %>% 
 #   group_by(IMVonAdm) %>% tally()
 
+# basicdata %>% 
+#   group_by(is.na(ArrivalBMI)) %>% tally()
+
 ```
 
-# other sheets - select and calculate variables
+## diagnosis sheet - select and calculate variables
 ```{r}
 
-diagnosisdata <- diagnosissheet %>% 
+diagnosisdata <- 
+  read_excel(datafile, na='NULL', sheet = 'AllDiagnoses', range = 'A1:TY1609') %>% 
    select(c(PersonalID,
            J809A,
            J809B,
@@ -120,7 +121,13 @@ diagnosisdata <- diagnosissheet %>%
                        J809X == 1 ~ as.character(NA)
                        ))
 
-SOFAdata <- SOFAsheet %>% 
+```
+
+
+## SOFA sheet - select and calculate variables
+```{r}
+SOFAdata <- 
+  read_excel(datafile, na='NULL', sheet = 'SOFA', range = 'A1:BX1609') %>% 
   select(c(PersonalID,
           SOFATotalPoint,
           KDIGOMin,
@@ -130,10 +137,18 @@ SOFAdata <- SOFAsheet %>%
           Noradrenalin,
           Dobutamin,
           Levosimendan,
-          Vasopressin)) %>% 
+          Vasopressin,
+          DaysWithVasopressorsInotropes)) %>% 
   mutate(KDIGOMin = as.character(KDIGOMin))
 
-measuresdata <- measuressheet %>%
+
+```
+
+
+## measures sheet - select and calculate variables
+```{r}
+measuresdata <- 
+  read_excel(datafile, na='NULL', sheet = 'Measures', range = 'A1:BC1609') %>%
   select(c(PersonalID,
           `DG021 min`,
           `DG021 days`,
@@ -154,7 +169,13 @@ measuresdata <- measuressheet %>%
     CRRT = `DR020 min` > 0
   )
 
-SIRIdata <- SIRIsheet %>% 
+```
+
+
+## SIRI sheet - select and calculate variables
+```{r}
+SIRIdata <- 
+  read_excel(datafile, na='NULL', sheet = 'SIRI', range = 'A1:AZ1609') %>% 
   select(c(PersonalID,
           # specific
           CovidMedicineKlorokinfosfat,
@@ -313,7 +334,13 @@ swecovdata <- comorbiddata %>%
             CovidMedicineLopinavirRitonavir,
             OffRegistryDate,
             AdmissionRegistration,
-            DaysDischargeOffReg
+            DaysDischargeOffReg,
+            Dopamin,
+            Adrenalin,
+            Noradrenalin,
+            Dobutamin,
+            Levosimendan,
+            Vasopressin
          )) %>%
   filter(!is.na(Mortality30days))
 
