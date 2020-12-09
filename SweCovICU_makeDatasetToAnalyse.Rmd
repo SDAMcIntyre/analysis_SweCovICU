@@ -82,7 +82,9 @@ basicdata <-
    DaysDischargeOffReg = if_else(DaysDischargeOffReg < 0,
                                  as.numeric(NA), DaysDischargeOffReg),
    Mortality30days = recode(Deceased, Yes = TRUE, No = FALSE),
-   IMVonAdm = replace_na(IMVonAdm,0) %>% as.logical,
+   IMVonAdmission = case_when(IMVonAdm == 1 ~ TRUE,
+                              is.na(TimeToIMV) ~ NA,
+                              is.na(IMVonAdm) ~ FALSE),
    DaysToDeath = 
      as.Date(OffRegistryDate) - as.Date(AdmissionRegistration) - (DaysDischargeOffReg),
          
@@ -94,13 +96,16 @@ basicdata <-
        as.Date(AdmissionRegistration) <= "2020-05-06" ~ '6Apr-6May',
      TRUE ~ as.Date(AdmissionRegistration) %>% as.character() )
   ) %>% 
-  select(-c(OxygenationIndexToUse))
+  select(-c(OxygenationIndexToUse, IMVonAdm))
 
-# basicdata %>% 
+# basicdata %>%
 #   group_by(IMVonAdm) %>% tally()
-
+# 
+# basicdata %>%
+#   group_by(is.na(TimeToIMV)) %>% tally()
+# 
 # basicdata %>% 
-#   group_by(is.na(ArrivalBMI)) %>% tally()
+#   group_by(IMVonAdmission) %>% tally()
 
 ```
 
@@ -207,6 +212,9 @@ SIRIdata <-
     DaysToICUFromIllness = if_else(DaysToICUFromIllness < 0, 
                               as.numeric(NA), 
                               DaysToICUFromIllness),
+    DaysToICUIllnessCategory = case_when(DaysToICUFromIllness < 4 ~ '<4',
+                                         between(DaysToICUFromIllness,4,7) ~ '4-7',
+                                         DaysToICUFromIllness >= 8 ~ '8+'),
     
     # either of these
     LopinavirOrRitonavir = pmax(CovidMedicineLopinavir,
