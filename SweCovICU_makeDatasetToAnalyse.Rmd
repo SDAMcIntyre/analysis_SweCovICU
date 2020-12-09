@@ -51,6 +51,8 @@ basicdata <- basicsheet %>%
            NumberOfICUTransfers,
            SAPS3TimeInHospital, 
            ICUDays,
+           TimeToIMV,
+           IMVonAdm,
            DischargedTo,
            CareResult,
            OffRegistryDate,
