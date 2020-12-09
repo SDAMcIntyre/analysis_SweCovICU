@@ -39,7 +39,8 @@ swecovdata <- read_csv('../SweCovICU_AnalysedData.csv',
                           SAPS3TimeInHospitalNo0 = col_double(),
                           J809worst = col_character(),
                           DaysToDeath = col_double(),
-                         AdmissionPeriod = col_character()
+                         AdmissionPeriod = col_character(),
+                         TimeToIMV = col_double()
                          )) %>% 
   # to make sure the values are presented in the logical order instead of alphabetical
   mutate(J809worst = J809worst %>% factor(levels = c('none', 'mild','moderate','severe')),
@@ -263,19 +264,21 @@ table3data <- swecovdata %>%
          Sex = Gender,
          `SAPS III score` = SAPS3TotalPoints,
          `SOFA score` = SOFATotalPoint,
-         Obesity = RiskObesity40,
+         `Obesity (BMI >= 40)` = RiskObesity40,
          `Diabetes Mellitus` = RiskDiabetes,
          Hypertension = RiskHypertension,
          `Chronic heart diseases` = RiskChronicHeartDisease, 
          `Chronic lung disease` = RiskChronicLungDisease, 
          `Chronic renal disease` = RiskChronKidneyDisease, 
          `Immunosuppression` = RiskReducedImmuneDefence, 
-         `Time from symptom onset to ICU` = DaysToICUFromIllness, 
+         `Days from symptom onset to ICU` = DaysToICUIllnessCategory, 
          `PAO2/FIO2 on admission` = OxygenationIndex, 
          `Acute Kidney Injury` = KDIGOMin,
          `Acute respiratory failure` = J809worst, 
          `Invasive mechanical ventilation` = InvasiveMechanicalVentilation, 
          `Noninvasive mechanical ventilation` = NonInvasiveMechVent, 
+         `Invasive mechanical ventilation on day of ICU admission` = IMVonAdmission,
+         `Time to invasive mechanical ventilation` = TimeToIMV,
          HFNO = OxHighFlowNasalCanula, 
          `Prone positioning` = CarePronePatient, 
          `Specific pharmacotherapy*` = SpecPharmAny, 
@@ -285,32 +288,33 @@ table3data <- swecovdata %>%
   mutate(Age = Age/10,
          `SAPS III score` = `SAPS III score`/5,
          `SOFA score` = `SOFA score`/1,
-         `Time from symptom onset to ICU` = `Time from symptom onset to ICU`/7,
-         `PAO2/FIO2 on admission` = `PAO2/FIO2 on admission`/37.5)
+         `PAO2/FIO2 on admission` = `PAO2/FIO2 on admission`/37.5,
+         `Time to invasive mechanical ventilation` = `Time to invasive mechanical ventilation`*24)
 
 table3steps <- tibble(
   Variable = names(table3data)[names(table3data)!="Mortality30days"],
   UnitStep = case_when(Variable == 'Age' ~ '10 years',
                        Variable == 'SAPS III score' ~ '5 points',
                        Variable == 'SOFA score' ~ '1 point',
-                       Variable == 'Time from symptom onset to ICU' ~ '7 days',
                        Variable == 'PAO2/FIO2 on admission' ~ '37.5 mmHg',
+                       Variable == 'Time to invasive mechanical ventilation' ~ '24 hours',
                        TRUE ~ '')
                       )
 
+# total N for multivariable analysis
 Nmulti <- table3data %>% 
   select(Mortality30days,
          `Age Group`,
          Sex,
          `SAPS III score`,
-         Obesity,
+         `Obesity (BMI >= 40)`,
          `Diabetes Mellitus`,
          Hypertension,
          `Chronic heart diseases`, 
          `Chronic lung disease`, 
          `Chronic renal disease`, 
          `Immunosuppression`, 
-         `Time from symptom onset to ICU`, 
+         `Days from symptom onset to ICU`, 
          `Acute respiratory failure`, 
          `Invasive mechanical ventilation`, 
          `Noninvasive mechanical ventilation`, 
@@ -369,14 +373,14 @@ multimodel <- glm(Mortality30days ~
                     `Age Group` +
                      Sex +
                      `SAPS III score` +
-                     Obesity +
+                     `Obesity (BMI >= 40)` +
                      `Diabetes Mellitus` +
                      Hypertension +
                      `Chronic heart diseases` + 
                      `Chronic lung disease` + 
                      `Chronic renal disease` + 
                      `Immunosuppression` + 
-                     `Time from symptom onset to ICU` + 
+                     `Days from symptom onset to ICU` + 
                      `Acute respiratory failure` + 
                      `Invasive mechanical ventilation` + 
                      `Noninvasive mechanical ventilation` + 
@@ -471,38 +475,29 @@ fisher.test(xtabs(~ Mortality30days + AdmissionPeriod, swecovdata))
 Liklihood ratio test, do coefficients of predictors in multivariable model depend on admission month?
 ```{r}
 
-sensitivitydata <- swecovdata %>% 
+sensitivityadmission <- swecovdata %>% 
   select(Mortality30days, 
          AdmissionPeriod, # added this
          `Age Group` = AgeGroup,
-         Age,
          Sex = Gender,
          `SAPS III score` = SAPS3TotalPoints,
-         `SOFA score` = SOFATotalPoint,
-         Obesity = RiskObesityToUse,
          `Diabetes Mellitus` = RiskDiabetes,
          Hypertension = RiskHypertension,
          `Chronic heart diseases` = RiskChronicHeartDisease, 
          `Chronic lung disease` = RiskChronicLungDisease, 
          `Chronic renal disease` = RiskChronKidneyDisease, 
          `Immunosuppression` = RiskReducedImmuneDefence, 
-         `Time from symptom onset to ICU` = DaysToICUFromIllness, 
-         `PAO2/FIO2 on admission` = OxygenationIndex, 
-         `Acute Kidney Injury` = KDIGOMin,
+         `Days from symptom onset to ICU` = DaysToICUIllnessCategory, 
          `Acute respiratory failure` = J809worst, 
          `Invasive mechanical ventilation` = InvasiveMechanicalVentilation, 
          `Noninvasive mechanical ventilation` = NonInvasiveMechVent, 
          HFNO = OxHighFlowNasalCanula, 
          `Prone positioning` = CarePronePatient, 
          `Specific pharmacotherapy*` = SpecPharmAny, 
-         `Vasopressors/Inotropes` = VasoInoAny,
          CRRT, 
          `Transfer to other ICU` = ICUtransferred) %>% 
-  mutate(Age = Age/10,
-         `SAPS III score` = `SAPS III score`/5,
-         `SOFA score` = `SOFA score`/1,
-         `Time from symptom onset to ICU` = `Time from symptom onset to ICU`/7,
-         `PAO2/FIO2 on admission` = `PAO2/FIO2 on admission`/37.5)
+  mutate(`SAPS III score` = `SAPS III score`/5)
+
 
 
 # based on the approach here: https://stats.stackexchange.com/questions/316801/how-to-compare-logistic-regression-curves 
@@ -512,14 +507,14 @@ multimodel.noint <- glm(Mortality30days ~
                     `Age Group` +
                      Sex +
                      `SAPS III score` +
-                     Obesity +
+                     `Obesity (BMI >= 40)` +
                      `Diabetes Mellitus` +
                      Hypertension +
                      `Chronic heart diseases` + 
                      `Chronic lung disease` + 
                      `Chronic renal disease` + 
                      `Immunosuppression` + 
-                     `Time from symptom onset to ICU` + 
+                     `Days from symptom onset to ICU` + 
                      `Acute respiratory failure` + 
                      `Invasive mechanical ventilation` + 
                      `Noninvasive mechanical ventilation` + 
@@ -529,7 +524,7 @@ multimodel.noint <- glm(Mortality30days ~
                      CRRT + 
                      `Transfer to other ICU`,
               family=binomial(link="logit"),
-              data = sensitivitydata)
+              data = sensitivityadmission)
 
 # summary(multimodel.noint)
 
@@ -538,14 +533,14 @@ multimodel.int <- glm(Mortality30days ~
                     `Age Group` * AdmissionPeriod +
                      Sex * AdmissionPeriod +
                      `SAPS III score` * AdmissionPeriod +
-                     Obesity * AdmissionPeriod +
+                     `Obesity (BMI >= 40)` * AdmissionPeriod +
                      `Diabetes Mellitus` * AdmissionPeriod +
                      Hypertension * AdmissionPeriod +
                      `Chronic heart diseases` * AdmissionPeriod + 
                      `Chronic lung disease` * AdmissionPeriod + 
                      `Chronic renal disease` * AdmissionPeriod + 
                      `Immunosuppression` * AdmissionPeriod + 
-                     `Time from symptom onset to ICU` * AdmissionPeriod + 
+                     `Days from symptom onset to ICU` * AdmissionPeriod + 
                      `Acute respiratory failure` * AdmissionPeriod + 
                      `Invasive mechanical ventilation` * AdmissionPeriod + 
                      `Noninvasive mechanical ventilation` * AdmissionPeriod + 
@@ -555,7 +550,7 @@ multimodel.int <- glm(Mortality30days ~
                      CRRT * AdmissionPeriod + 
                      `Transfer to other ICU` * AdmissionPeriod,
               family=binomial(link="logit"),
-              data = sensitivitydata)
+              data = sensitivityadmission)
 
 # summary(multimodel.int)
 
@@ -563,6 +558,92 @@ anova(multimodel.noint,multimodel.int, test = 'Chisq')
 
 
 ```
+
+## BMI sensitivity
+
+```{r}
+
+sensitivityBMI <- swecovdata %>% 
+  select(Mortality30days, 
+         `Obesity (degree)` = BMIcategory, # added this
+         `Age Group` = AgeGroup,
+         Sex = Gender,
+         `SAPS III score` = SAPS3TotalPoints,
+         `Diabetes Mellitus` = RiskDiabetes,
+         Hypertension = RiskHypertension,
+         `Chronic heart diseases` = RiskChronicHeartDisease, 
+         `Chronic lung disease` = RiskChronicLungDisease, 
+         `Chronic renal disease` = RiskChronKidneyDisease, 
+         `Immunosuppression` = RiskReducedImmuneDefence, 
+         `Days from symptom onset to ICU` = DaysToICUIllnessCategory, 
+         `Acute respiratory failure` = J809worst, 
+         `Invasive mechanical ventilation` = InvasiveMechanicalVentilation, 
+         `Noninvasive mechanical ventilation` = NonInvasiveMechVent, 
+         HFNO = OxHighFlowNasalCanula, 
+         `Prone positioning` = CarePronePatient, 
+         `Specific pharmacotherapy*` = SpecPharmAny, 
+         CRRT, 
+         `Transfer to other ICU` = ICUtransferred) %>% 
+  mutate(`SAPS III score` = `SAPS III score`/5)
+
+
+# based on the approach here: https://stats.stackexchange.com/questions/316801/how-to-compare-logistic-regression-curves 
+
+multimodel.noint <- glm(Mortality30days ~
+                    `Obesity (degree)` +
+                    `Age Group` +
+                     Sex +
+                     `SAPS III score` +
+                     `Diabetes Mellitus` +
+                     Hypertension +
+                     `Chronic heart diseases` + 
+                     `Chronic lung disease` + 
+                     `Chronic renal disease` + 
+                     `Immunosuppression` + 
+                     `Days from symptom onset to ICU` + 
+                     `Acute respiratory failure` + 
+                     `Invasive mechanical ventilation` + 
+                     `Noninvasive mechanical ventilation` + 
+                     HFNO + 
+                     `Prone positioning` + 
+                     `Specific pharmacotherapy*` + 
+                     CRRT + 
+                     `Transfer to other ICU`,
+              family=binomial(link="logit"),
+              data = sensitivityBMI)
+
+# summary(multimodel.noint)
+
+multimodel.int <- glm(Mortality30days ~
+                    `Obesity (degree)` +
+                    `Age Group` * `Obesity (degree)` +
+                     Sex * `Obesity (degree)` +
+                     `SAPS III score` * `Obesity (degree)` +
+                     `Diabetes Mellitus` * `Obesity (degree)` +
+                     Hypertension * `Obesity (degree)` +
+                     `Chronic heart diseases` * `Obesity (degree)` + 
+                     `Chronic lung disease` * `Obesity (degree)` + 
+                     `Chronic renal disease` * `Obesity (degree)` + 
+                     `Immunosuppression` * `Obesity (degree)` + 
+                     `Days from symptom onset to ICU` * `Obesity (degree)` + 
+                     `Acute respiratory failure` * `Obesity (degree)` + 
+                     `Invasive mechanical ventilation` * `Obesity (degree)` + 
+                     `Noninvasive mechanical ventilation` * `Obesity (degree)` + 
+                     HFNO * `Obesity (degree)` + 
+                     `Prone positioning` * `Obesity (degree)` + 
+                     `Specific pharmacotherapy*` * `Obesity (degree)` + 
+                     CRRT * `Obesity (degree)` + 
+                     `Transfer to other ICU` * `Obesity (degree)`,
+              family=binomial(link="logit"),
+              data = sensitivityadmission)
+
+# summary(multimodel.int)
+
+anova(multimodel.noint,multimodel.int, test = 'Chisq')
+
+
+```
+
 
 # For Table S3
 
