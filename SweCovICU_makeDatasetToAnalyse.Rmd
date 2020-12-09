@@ -86,6 +86,7 @@ basicdata <- basicsheet %>%
    DaysDischargeOffReg = if_else(DaysDischargeOffReg < 0,
                                  as.numeric(NA), DaysDischargeOffReg),
    Mortality30days = recode(Deceased, Yes = TRUE, No = FALSE),
+   IMVonAdm = replace_na(IMVonAdm,0) %>% as.logical,
    DaysToDeath = 
      as.Date(OffRegistryDate) - as.Date(AdmissionRegistration) - (DaysDischargeOffReg),
          
@@ -98,6 +99,8 @@ basicdata <- basicsheet %>%
      TRUE ~ as.Date(AdmissionRegistration) %>% as.character() )
   )
 
+# basicdata %>% 
+#   group_by(IMVonAdm) %>% tally()
 
 ```
 
