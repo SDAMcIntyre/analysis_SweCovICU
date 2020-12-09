@@ -40,7 +40,8 @@ basicdata <-
            NumberOfICUTransfers,
            SAPS3TimeInHospital, 
            ICUDays,
-           TimeToIMV,
+           AdmissionTime,
+           StartIMV,
            IMVonAdm,
            DischargedTo,
            CareResult,
@@ -82,9 +83,10 @@ basicdata <-
    DaysDischargeOffReg = if_else(DaysDischargeOffReg < 0,
                                  as.numeric(NA), DaysDischargeOffReg),
    Mortality30days = recode(Deceased, Yes = TRUE, No = FALSE),
-   IMVonAdmission = case_when(IMVonAdm == 1 ~ TRUE,
-                              is.na(TimeToIMV) ~ NA,
-                              is.na(IMVonAdm) ~ FALSE),
+   
+   # IMV time
+   TimeToIMV = difftime(StartIMV, AdmissionTime, units = 'hours'),
+   IMVonAdmission = TimeToIMV <= 24,
    DaysToDeath = 
      as.Date(OffRegistryDate) - as.Date(AdmissionRegistration) - (DaysDischargeOffReg),
          
@@ -96,7 +98,10 @@ basicdata <-
        as.Date(AdmissionRegistration) <= "2020-05-06" ~ '6Apr-6May',
      TRUE ~ as.Date(AdmissionRegistration) %>% as.character() )
   ) %>% 
-  select(-c(OxygenationIndexToUse, IMVonAdm))
+  select(-c(OxygenationIndexToUse,
+            AdmissionTime,
+            StartIMV,
+            IMVonAdm))
 
 # basicdata %>%
 #   group_by(IMVonAdm) %>% tally()
@@ -104,7 +109,7 @@ basicdata <-
 # basicdata %>%
 #   group_by(is.na(TimeToIMV)) %>% tally()
 # 
-# basicdata %>% 
+# basicdata %>%
 #   group_by(IMVonAdmission) %>% tally()
 
 ```
