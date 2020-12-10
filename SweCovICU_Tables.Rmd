@@ -24,6 +24,7 @@ swecovdata <- read_csv('../SweCovICU_AnalysedData.csv',
                           Age = col_double(),
                           Gender = col_character(),
                           SAPS3TotalPoints = col_double(),
+                          ArrivalBMI = col_double(),
                           OxygenationIndex = col_double(),
                           ICUDays = col_double(),
                           DischargedTo = col_character(),
@@ -271,7 +272,7 @@ table3data <- swecovdata %>%
          `Chronic lung disease` = RiskChronicLungDisease, 
          `Chronic renal disease` = RiskChronKidneyDisease, 
          `Immunosuppression` = RiskReducedImmuneDefence, 
-         `Days from symptom onset to ICU` = DaysToICUIllnessCategory, 
+         `Days from symptom onset to ICU` = DaysToICUFromIllness, 
          `PAO2/FIO2 on admission` = OxygenationIndex, 
          `Acute Kidney Injury` = KDIGOMin,
          `Acute respiratory failure` = J809worst, 
@@ -288,6 +289,7 @@ table3data <- swecovdata %>%
   mutate(Age = Age/10,
          `SAPS III score` = `SAPS III score`/5,
          `SOFA score` = `SOFA score`/1,
+         `Days from symptom onset to ICU` = `Days from symptom onset to ICU`/7,
          `PAO2/FIO2 on admission` = `PAO2/FIO2 on admission`/37.5,
          `Time to invasive mechanical ventilation` = `Time to invasive mechanical ventilation`*24)
 
@@ -296,8 +298,9 @@ table3steps <- tibble(
   UnitStep = case_when(Variable == 'Age' ~ '10 years',
                        Variable == 'SAPS III score' ~ '5 points',
                        Variable == 'SOFA score' ~ '1 point',
+                       Variable == 'Days from symptom onset to ICU' ~ '7 days',
                        Variable == 'PAO2/FIO2 on admission' ~ '37.5 mmHg',
-                       Variable == 'Time to invasive mechanical ventilation' ~ '24 hours',
+                       Variable == 'Days to invasive mechanical ventilation' ~ '24 hours',
                        TRUE ~ '')
                       )
 
@@ -442,6 +445,8 @@ table3data %>%
 
 # Sensitivity
 
+## sensitivity admission
+
 30 day mortality by admission period
 ```{r}
 swecovdata %>% 
@@ -475,30 +480,126 @@ fisher.test(xtabs(~ Mortality30days + AdmissionPeriod, swecovdata))
 Liklihood ratio test, do coefficients of predictors in multivariable model depend on admission month?
 ```{r}
 
-sensitivityadmission <- swecovdata %>% 
+firstmonth <- swecovdata %>% 
+  filter(AdmissionPeriod == '6Mar-5Apr') %>% 
   select(Mortality30days, 
-         AdmissionPeriod, # added this
          `Age Group` = AgeGroup,
+         Age,
          Sex = Gender,
          `SAPS III score` = SAPS3TotalPoints,
+         `SOFA score` = SOFATotalPoint,
+         `Obesity (BMI >= 40)` = RiskObesity40,
          `Diabetes Mellitus` = RiskDiabetes,
          Hypertension = RiskHypertension,
          `Chronic heart diseases` = RiskChronicHeartDisease, 
          `Chronic lung disease` = RiskChronicLungDisease, 
          `Chronic renal disease` = RiskChronKidneyDisease, 
          `Immunosuppression` = RiskReducedImmuneDefence, 
-         `Days from symptom onset to ICU` = DaysToICUIllnessCategory, 
+         `Days from symptom onset to ICU` = DaysToICUFromIllness, 
+         `PAO2/FIO2 on admission` = OxygenationIndex, 
+         `Acute Kidney Injury` = KDIGOMin,
          `Acute respiratory failure` = J809worst, 
          `Invasive mechanical ventilation` = InvasiveMechanicalVentilation, 
          `Noninvasive mechanical ventilation` = NonInvasiveMechVent, 
+         `Invasive mechanical ventilation on day of ICU admission` = IMVonAdmission,
+         `Time to invasive mechanical ventilation` = TimeToIMV,
          HFNO = OxHighFlowNasalCanula, 
          `Prone positioning` = CarePronePatient, 
          `Specific pharmacotherapy*` = SpecPharmAny, 
+         `Vasopressors/Inotropes` = VasoInoAny,
          CRRT, 
          `Transfer to other ICU` = ICUtransferred) %>% 
-  mutate(`SAPS III score` = `SAPS III score`/5)
+  mutate(Age = Age/10,
+         `SAPS III score` = `SAPS III score`/5,
+         `SOFA score` = `SOFA score`/1,
+         `Days from symptom onset to ICU` = `Days from symptom onset to ICU`/7,
+         `PAO2/FIO2 on admission` = `PAO2/FIO2 on admission`/37.5,
+         `Time to invasive mechanical ventilation` = `Time to invasive mechanical ventilation`*24) 
 
 
+# total N for multivariable analysis
+N.1stmonth <- firstmonth %>% 
+  select(Mortality30days,
+         `Age Group`,
+         Sex,
+         `SAPS III score`,
+         `Obesity (BMI >= 40)`,
+         `Diabetes Mellitus`,
+         Hypertension,
+         `Chronic heart diseases`, 
+         `Chronic lung disease`, 
+         `Chronic renal disease`, 
+         `Immunosuppression`, 
+         `Days from symptom onset to ICU`, 
+         `Acute respiratory failure`, 
+         `Invasive mechanical ventilation`, 
+         `Noninvasive mechanical ventilation`, 
+         HFNO, 
+         `Prone positioning`, 
+         `Specific pharmacotherapy*`, 
+         CRRT, 
+         `Transfer to other ICU`) %>% 
+  na.omit() %>% nrow()
+
+
+multi.1stmonth <- glm(Mortality30days ~
+                    `Age Group` +
+                     Sex +
+                     `SAPS III score` +
+                     `Obesity (BMI >= 40)` +
+                     `Diabetes Mellitus` +
+                     Hypertension +
+                     `Chronic heart diseases` + 
+                     `Chronic lung disease` + 
+                     `Chronic renal disease` + 
+                     `Immunosuppression` + 
+                     `Days from symptom onset to ICU` + 
+                     `Acute respiratory failure` + 
+                     `Invasive mechanical ventilation` + 
+                     `Noninvasive mechanical ventilation` + 
+                     HFNO + 
+                     `Prone positioning` + 
+                     `Specific pharmacotherapy*` + 
+                     CRRT + 
+                     `Transfer to other ICU`,
+              family=binomial(link="logit"),
+              data = firstmonth)
+
+multivarResults.1stmonth <- exp(cbind(coef(multi.1stmonth), confint(multi.1stmonth))) %>% 
+    cbind(coef(summary(multi.1stmonth))[,4]) %>%  
+    as_tibble(rownames = 'v') %>% 
+  filter(v!= '(Intercept)') %>%
+    set_names(c('v','OR', 'Q1', 'Q3', 'p')) %>% 
+    mutate(OR = textround(OR,1),
+           Q1 = textround(Q1,1),
+           Q3 = textround(Q3,1),
+           sig = case_when(p < 0.001 ~ '***',
+                           p < 0.01 ~ '**',
+                           p < 0.05 ~ '*',
+                           TRUE ~ ''))
+
+firstmonth %>% 
+  summarise_at(vars(-Mortality30days),
+               list(Label = ~table3_labels(.),
+                    `Univariable OR (95% CI)` = ~ univar(Mortality30days, .),
+                    varclass = ~class(.)
+                    )) %>% 
+  pivot_longer(everything(), 
+               names_to = c('Variable','.value'),  
+               names_sep = '_') %>% 
+  full_join(table3steps) %>% 
+  group_by(Variable) %>% 
+  mutate(`Multivariable OR (95% CI)` = multivar(Variable,varclass)) %>% 
+  ungroup() %>% 
+  rename(!!paste0('Multivariable OR (95% CI) <br> n = ', N.1stmonth) := `Multivariable OR (95% CI)`) %>% 
+  mutate(Variable = paste0('<b>',Variable,'</b>', '<br>', Label,UnitStep)) %>% 
+  select(-c(Label,UnitStep, varclass)) %>% 
+  kable(escape = F) %>% kable_styling(full_width = F, bootstrap_options = 'condensed')
+
+```
+
+### compare models
+```{r}
 
 # based on the approach here: https://stats.stackexchange.com/questions/316801/how-to-compare-logistic-regression-curves 
 
@@ -527,7 +628,6 @@ multimodel.noint <- glm(Mortality30days ~
               data = sensitivityadmission)
 
 # summary(multimodel.noint)
-
 multimodel.int <- glm(Mortality30days ~
                     AdmissionPeriod +
                     `Age Group` * AdmissionPeriod +
@@ -563,37 +663,76 @@ anova(multimodel.noint,multimodel.int, test = 'Chisq')
 
 ```{r}
 
-sensitivityBMI <- swecovdata %>% 
+BMIdata <- swecovdata %>% 
   select(Mortality30days, 
-         `Obesity (degree)` = BMIcategory, # added this
+         BMI = ArrivalBMI, # added this
          `Age Group` = AgeGroup,
+         Age,
          Sex = Gender,
          `SAPS III score` = SAPS3TotalPoints,
+         `SOFA score` = SOFATotalPoint,
+         # `Obesity (BMI >= 40)` = RiskObesity40,
          `Diabetes Mellitus` = RiskDiabetes,
          Hypertension = RiskHypertension,
          `Chronic heart diseases` = RiskChronicHeartDisease, 
          `Chronic lung disease` = RiskChronicLungDisease, 
          `Chronic renal disease` = RiskChronKidneyDisease, 
          `Immunosuppression` = RiskReducedImmuneDefence, 
-         `Days from symptom onset to ICU` = DaysToICUIllnessCategory, 
+         `Days from symptom onset to ICU` = DaysToICUFromIllness, 
+         `PAO2/FIO2 on admission` = OxygenationIndex, 
+         `Acute Kidney Injury` = KDIGOMin,
          `Acute respiratory failure` = J809worst, 
          `Invasive mechanical ventilation` = InvasiveMechanicalVentilation, 
          `Noninvasive mechanical ventilation` = NonInvasiveMechVent, 
+         `Invasive mechanical ventilation on day of ICU admission` = IMVonAdmission,
+         `Time to invasive mechanical ventilation` = TimeToIMV,
          HFNO = OxHighFlowNasalCanula, 
          `Prone positioning` = CarePronePatient, 
          `Specific pharmacotherapy*` = SpecPharmAny, 
+         `Vasopressors/Inotropes` = VasoInoAny,
          CRRT, 
          `Transfer to other ICU` = ICUtransferred) %>% 
-  mutate(`SAPS III score` = `SAPS III score`/5)
+  mutate(BMI = BMI/5,
+         Age = Age/10,
+         `SAPS III score` = `SAPS III score`/5,
+         `SOFA score` = `SOFA score`/1,
+         `Days from symptom onset to ICU` = `Days from symptom onset to ICU`/7,
+         `PAO2/FIO2 on admission` = `PAO2/FIO2 on admission`/37.5,
+         `Time to invasive mechanical ventilation` = `Time to invasive mechanical ventilation`*24) 
 
 
-# based on the approach here: https://stats.stackexchange.com/questions/316801/how-to-compare-logistic-regression-curves 
+# total N for multivariable analysis
+N.BMI <- BMIdata %>% 
+  select(Mortality30days,
+         BMI,
+         `Age Group`,
+         Sex,
+         `SAPS III score`,
+         # `Obesity (BMI >= 40)`,
+         `Diabetes Mellitus`,
+         Hypertension,
+         `Chronic heart diseases`, 
+         `Chronic lung disease`, 
+         `Chronic renal disease`, 
+         `Immunosuppression`, 
+         `Days from symptom onset to ICU`, 
+         `Acute respiratory failure`, 
+         `Invasive mechanical ventilation`, 
+         `Noninvasive mechanical ventilation`, 
+         HFNO, 
+         `Prone positioning`, 
+         `Specific pharmacotherapy*`, 
+         CRRT, 
+         `Transfer to other ICU`) %>% 
+  na.omit() %>% nrow()
 
-multimodel.noint <- glm(Mortality30days ~
-                    `Obesity (degree)` +
+
+multi.BMI <- glm(Mortality30days ~
+                    BMI +
                     `Age Group` +
                      Sex +
                      `SAPS III score` +
+                     # `Obesity (BMI >= 40)` +
                      `Diabetes Mellitus` +
                      Hypertension +
                      `Chronic heart diseases` + 
@@ -610,40 +749,191 @@ multimodel.noint <- glm(Mortality30days ~
                      CRRT + 
                      `Transfer to other ICU`,
               family=binomial(link="logit"),
-              data = sensitivityBMI)
+              data = BMIdata)
 
-# summary(multimodel.noint)
+multivarResults.BMI <- exp(cbind(coef(multi.BMI), confint(multi.BMI))) %>% 
+    cbind(coef(summary(multi.BMI))[,4]) %>%  
+    as_tibble(rownames = 'v') %>% 
+  filter(v!= '(Intercept)') %>%
+    set_names(c('v','OR', 'Q1', 'Q3', 'p')) %>% 
+    mutate(OR = textround(OR,1),
+           Q1 = textround(Q1,1),
+           Q3 = textround(Q3,1),
+           sig = case_when(p < 0.001 ~ '***',
+                           p < 0.01 ~ '**',
+                           p < 0.05 ~ '*',
+                           TRUE ~ ''))
 
-multimodel.int <- glm(Mortality30days ~
-                    `Obesity (degree)` +
-                    `Age Group` * `Obesity (degree)` +
-                     Sex * `Obesity (degree)` +
-                     `SAPS III score` * `Obesity (degree)` +
-                     `Diabetes Mellitus` * `Obesity (degree)` +
-                     Hypertension * `Obesity (degree)` +
-                     `Chronic heart diseases` * `Obesity (degree)` + 
-                     `Chronic lung disease` * `Obesity (degree)` + 
-                     `Chronic renal disease` * `Obesity (degree)` + 
-                     `Immunosuppression` * `Obesity (degree)` + 
-                     `Days from symptom onset to ICU` * `Obesity (degree)` + 
-                     `Acute respiratory failure` * `Obesity (degree)` + 
-                     `Invasive mechanical ventilation` * `Obesity (degree)` + 
-                     `Noninvasive mechanical ventilation` * `Obesity (degree)` + 
-                     HFNO * `Obesity (degree)` + 
-                     `Prone positioning` * `Obesity (degree)` + 
-                     `Specific pharmacotherapy*` * `Obesity (degree)` + 
-                     CRRT * `Obesity (degree)` + 
-                     `Transfer to other ICU` * `Obesity (degree)`,
-              family=binomial(link="logit"),
-              data = sensitivityadmission)
 
-# summary(multimodel.int)
+tablesteps.BMI <- tibble(
+  Variable = names(BMIdata)[names(BMIdata)!="Mortality30days"],
+  UnitStep = case_when(Variable == 'BMI' ~ '5 points',
+                       Variable == 'Age' ~ '10 years',
+                       Variable == 'SAPS III score' ~ '5 points',
+                       Variable == 'SOFA score' ~ '1 point',
+                       Variable == 'Days from symptom onset to ICU' ~ '7 days',
+                       Variable == 'PAO2/FIO2 on admission' ~ '37.5 mmHg',
+                       Variable == 'Days to invasive mechanical ventilation' ~ '24 hours',
+                       TRUE ~ '')
+                      )
 
-anova(multimodel.noint,multimodel.int, test = 'Chisq')
+BMIdata %>% 
+  summarise_at(vars(-Mortality30days),
+               list(Label = ~table3_labels(.),
+                    `Univariable OR (95% CI)` = ~ univar(Mortality30days, .),
+                    varclass = ~class(.)
+                    )) %>% 
+  pivot_longer(everything(), 
+               names_to = c('Variable','.value'),  
+               names_sep = '_') %>% 
+  full_join(tablesteps.BMI) %>% 
+  group_by(Variable) %>% 
+  mutate(`Multivariable OR (95% CI)` = multivar(Variable,varclass)) %>% 
+  ungroup() %>% 
+  rename(!!paste0('Multivariable OR (95% CI) <br> n = ', N.BMI) := `Multivariable OR (95% CI)`) %>% 
+  mutate(Variable = paste0('<b>',Variable,'</b>', '<br>', Label,UnitStep)) %>% 
+  select(-c(Label,UnitStep, varclass)) %>% 
+  kable(escape = F) %>% kable_styling(full_width = F, bootstrap_options = 'condensed')
 
 
 ```
 
+
+## BMI sensitivity
+
+```{r}
+
+vasodata <- swecovdata %>% 
+  select(Mortality30days, 
+         `Age Group` = AgeGroup,
+         Age,
+         Sex = Gender,
+         `SAPS III score` = SAPS3TotalPoints,
+         `SOFA score` = SOFATotalPoint,
+         `Obesity (BMI >= 40)` = RiskObesity40,
+         `Diabetes Mellitus` = RiskDiabetes,
+         Hypertension = RiskHypertension,
+         `Chronic heart diseases` = RiskChronicHeartDisease, 
+         `Chronic lung disease` = RiskChronicLungDisease, 
+         `Chronic renal disease` = RiskChronKidneyDisease, 
+         `Immunosuppression` = RiskReducedImmuneDefence, 
+         `Days from symptom onset to ICU` = DaysToICUFromIllness, 
+         `PAO2/FIO2 on admission` = OxygenationIndex, 
+         `Acute Kidney Injury` = KDIGOMin,
+         `Acute respiratory failure` = J809worst, 
+         `Invasive mechanical ventilation` = InvasiveMechanicalVentilation, 
+         `Noninvasive mechanical ventilation` = NonInvasiveMechVent, 
+         `Invasive mechanical ventilation on day of ICU admission` = IMVonAdmission,
+         `Time to invasive mechanical ventilation` = TimeToIMV,
+         HFNO = OxHighFlowNasalCanula, 
+         `Prone positioning` = CarePronePatient, 
+         `Specific pharmacotherapy*` = SpecPharmAny, 
+         `Vasopressors/Inotropes` = VasoInoAny,
+         CRRT, 
+         `Transfer to other ICU` = ICUtransferred) %>% 
+  mutate(Age = Age/10,
+         `SAPS III score` = `SAPS III score`/5,
+         `SOFA score` = `SOFA score`/1,
+         `Days from symptom onset to ICU` = `Days from symptom onset to ICU`/7,
+         `PAO2/FIO2 on admission` = `PAO2/FIO2 on admission`/37.5,
+         `Time to invasive mechanical ventilation` = `Time to invasive mechanical ventilation`*24) 
+
+
+# total N for multivariable analysis
+N.vaso <- vasodata %>% 
+  select(Mortality30days,
+         `Age Group`,
+         Sex,
+         `SAPS III score`,
+         `Obesity (BMI >= 40)`,
+         `Diabetes Mellitus`,
+         Hypertension,
+         `Chronic heart diseases`, 
+         `Chronic lung disease`, 
+         `Chronic renal disease`, 
+         `Immunosuppression`, 
+         `Days from symptom onset to ICU`, 
+         `Acute respiratory failure`, 
+         `Invasive mechanical ventilation`, 
+         `Noninvasive mechanical ventilation`, 
+         HFNO, 
+         `Prone positioning`, 
+         `Specific pharmacotherapy*`,
+         `Vasopressors/Inotropes`,
+         CRRT, 
+         `Transfer to other ICU`) %>% 
+  na.omit() %>% nrow()
+
+
+multi.vaso <- glm(Mortality30days ~
+                    `Age Group` +
+                     Sex +
+                     `SAPS III score` +
+                     `Obesity (BMI >= 40)` +
+                     `Diabetes Mellitus` +
+                     Hypertension +
+                     `Chronic heart diseases` + 
+                     `Chronic lung disease` + 
+                     `Chronic renal disease` + 
+                     `Immunosuppression` + 
+                     `Days from symptom onset to ICU` + 
+                     `Acute respiratory failure` + 
+                     `Invasive mechanical ventilation` + 
+                     `Noninvasive mechanical ventilation` + 
+                     HFNO + 
+                     `Prone positioning` + 
+                     `Specific pharmacotherapy*` + 
+                     CRRT + 
+                    `Vasopressors/Inotropes` +
+                     `Transfer to other ICU`,
+              family=binomial(link="logit"),
+              data = vasodata)
+
+multivarResults.vaso <- exp(cbind(coef(multi.vaso), confint(multi.vaso))) %>% 
+    cbind(coef(summary(multi.vaso))[,4]) %>%  
+    as_tibble(rownames = 'v') %>% 
+  filter(v!= '(Intercept)') %>%
+    set_names(c('v','OR', 'Q1', 'Q3', 'p')) %>% 
+    mutate(OR = textround(OR,1),
+           Q1 = textround(Q1,1),
+           Q3 = textround(Q3,1),
+           sig = case_when(p < 0.001 ~ '***',
+                           p < 0.01 ~ '**',
+                           p < 0.05 ~ '*',
+                           TRUE ~ ''))
+
+
+tablesteps.vaso <- tibble(
+  Variable = names(BMIdata)[names(BMIdata)!="Mortality30days"],
+  UnitStep = case_when(Variable == 'Age' ~ '10 years',
+                       Variable == 'SAPS III score' ~ '5 points',
+                       Variable == 'SOFA score' ~ '1 point',
+                       Variable == 'Days from symptom onset to ICU' ~ '7 days',
+                       Variable == 'PAO2/FIO2 on admission' ~ '37.5 mmHg',
+                       Variable == 'Days to invasive mechanical ventilation' ~ '24 hours',
+                       TRUE ~ '')
+                      )
+
+BMIdata %>% 
+  summarise_at(vars(-Mortality30days),
+               list(Label = ~table3_labels(.),
+                    `Univariable OR (95% CI)` = ~ univar(Mortality30days, .),
+                    varclass = ~class(.)
+                    )) %>% 
+  pivot_longer(everything(), 
+               names_to = c('Variable','.value'),  
+               names_sep = '_') %>% 
+  full_join(tablesteps.vaso) %>% 
+  group_by(Variable) %>% 
+  mutate(`Multivariable OR (95% CI)` = multivar(Variable,varclass)) %>% 
+  ungroup() %>% 
+  rename(!!paste0('Multivariable OR (95% CI) <br> n = ', N.vaso) := `Multivariable OR (95% CI)`) %>% 
+  mutate(Variable = paste0('<b>',Variable,'</b>', '<br>', Label,UnitStep)) %>% 
+  select(-c(Label,UnitStep, varclass)) %>% 
+  kable(escape = F) %>% kable_styling(full_width = F, bootstrap_options = 'condensed')
+
+
+```
 
 # For Table S3
 
@@ -745,7 +1035,7 @@ fisher.test(xtabs(~ Mortality30days + RiskHypertension, swecovdata))
 ## Obesity
 ```{r}
 swecovdata %>% 
-  tabyl(RiskObesityToUse, Mortality30days) %>% 
+  tabyl(RiskObesity40, Mortality30days) %>% 
   adorn_totals('col') %>% 
   adorn_percentages('row') %>% 
   adorn_pct_formatting() %>% 
@@ -755,7 +1045,7 @@ swecovdata %>%
 
 Fisher's exact test, 30 day mortality
 ```{r}
-fisher.test(xtabs(~ Mortality30days + RiskObesityToUse, swecovdata))
+fisher.test(xtabs(~ Mortality30days + RiskObesity40, swecovdata))
 
 ```
 ## Lung disease

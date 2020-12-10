@@ -328,7 +328,6 @@ swecovdata <- comorbiddata %>%
   # remove variables that were used for calculation and no longer needed
   select(-c(PersonalID,
             Deceased,
-            ArrivalBMI,
             BMI40plus,
             RiskObesity,
             NumberOfICUTransfers,
