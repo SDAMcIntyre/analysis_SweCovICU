@@ -366,7 +366,7 @@ table3data <- swecovdata %>%
          `SOFA score` = `SOFA score`/1,
          `Days from symptom onset to ICU` = `Days from symptom onset to ICU`/7,
          `PAO2/FIO2 on admission` = `PAO2/FIO2 on admission`/37.5,
-         `Time to invasive mechanical ventilation` = `Time to invasive mechanical ventilation`*24)
+         `Time to invasive mechanical ventilation` = `Time to invasive mechanical ventilation`/24)
 
 table3steps <- tibble(
   Variable = names(table3data)[names(table3data)!="Mortality30days"],
@@ -535,7 +535,7 @@ firstmonth <- swecovdata %>%
          `SOFA score` = `SOFA score`/1,
          `Days from symptom onset to ICU` = `Days from symptom onset to ICU`/7,
          `PAO2/FIO2 on admission` = `PAO2/FIO2 on admission`/37.5,
-         `Time to invasive mechanical ventilation` = `Time to invasive mechanical ventilation`*24) 
+         `Time to invasive mechanical ventilation` = `Time to invasive mechanical ventilation`/24) 
 
 
 # total N for multivariable analysis
@@ -623,6 +623,43 @@ firstmonth %>%
 ```{r}
 
 # based on the approach here: https://stats.stackexchange.com/questions/316801/how-to-compare-logistic-regression-curves 
+
+sensitivityadmission <- swecovdata %>% 
+  select(Mortality30days, 
+         AdmissionPeriod,
+         `Age Group` = AgeGroup,
+         Age,
+         Sex = Gender,
+         `SAPS III score` = SAPS3TotalPoints,
+         `SOFA score` = SOFATotalPoint,
+         `Obesity (BMI >= 40)` = RiskObesity40,
+         `Diabetes Mellitus` = RiskDiabetes,
+         Hypertension = RiskHypertension,
+         `Chronic heart diseases` = RiskChronicHeartDisease, 
+         `Chronic lung disease` = RiskChronicLungDisease, 
+         `Chronic renal disease` = RiskChronKidneyDisease, 
+         `Immunosuppression` = RiskReducedImmuneDefence, 
+         `Days from symptom onset to ICU` = DaysToICUFromIllness, 
+         `PAO2/FIO2 on admission` = OxygenationIndex, 
+         `Acute Kidney Injury` = KDIGOMin,
+         `Acute respiratory failure` = J809worst, 
+         `Invasive mechanical ventilation` = InvasiveMechanicalVentilation, 
+         `Noninvasive mechanical ventilation` = NonInvasiveMechVent, 
+         `Invasive mechanical ventilation on day of ICU admission` = IMVonAdmission,
+         `Time to invasive mechanical ventilation` = TimeToIMV,
+         HFNO = OxHighFlowNasalCanula, 
+         `Prone positioning` = CarePronePatient, 
+         `Specific pharmacotherapy*` = SpecPharmAny, 
+         `Vasopressors/Inotropes` = VasoInoAny,
+         CRRT, 
+         `Transfer to other ICU` = ICUtransferred) %>% 
+  mutate(Age = Age/10,
+         `SAPS III score` = `SAPS III score`/5,
+         `SOFA score` = `SOFA score`/1,
+         `Days from symptom onset to ICU` = `Days from symptom onset to ICU`/7,
+         `PAO2/FIO2 on admission` = `PAO2/FIO2 on admission`/37.5,
+         `Time to invasive mechanical ventilation` = `Time to invasive mechanical ventilation`/24) 
+
 
 multimodel.noint <- glm(Mortality30days ~
                     AdmissionPeriod +
@@ -718,7 +755,7 @@ BMIdata <- swecovdata %>%
          `SOFA score` = `SOFA score`/1,
          `Days from symptom onset to ICU` = `Days from symptom onset to ICU`/7,
          `PAO2/FIO2 on admission` = `PAO2/FIO2 on admission`/37.5,
-         `Time to invasive mechanical ventilation` = `Time to invasive mechanical ventilation`*24) 
+         `Time to invasive mechanical ventilation` = `Time to invasive mechanical ventilation`/24) 
 
 
 # total N for multivariable analysis
@@ -792,7 +829,7 @@ tablesteps.BMI <- tibble(
                        Variable == 'SOFA score' ~ '1 point',
                        Variable == 'Days from symptom onset to ICU' ~ '7 days',
                        Variable == 'PAO2/FIO2 on admission' ~ '37.5 mmHg',
-                       Variable == 'Days to invasive mechanical ventilation' ~ '24 hours',
+                       Variable == 'Time to invasive mechanical ventilation' ~ '24 hours',
                        TRUE ~ '')
                       )
 
@@ -855,7 +892,7 @@ vasodata <- swecovdata %>%
          `SOFA score` = `SOFA score`/1,
          `Days from symptom onset to ICU` = `Days from symptom onset to ICU`/7,
          `PAO2/FIO2 on admission` = `PAO2/FIO2 on admission`/37.5,
-         `Time to invasive mechanical ventilation` = `Time to invasive mechanical ventilation`*24) 
+         `Time to invasive mechanical ventilation` = `Time to invasive mechanical ventilation`/24) 
 
 
 # total N for multivariable analysis
@@ -929,7 +966,7 @@ tablesteps.vaso <- tibble(
                        Variable == 'SOFA score' ~ '1 point',
                        Variable == 'Days from symptom onset to ICU' ~ '7 days',
                        Variable == 'PAO2/FIO2 on admission' ~ '37.5 mmHg',
-                       Variable == 'Days to invasive mechanical ventilation' ~ '24 hours',
+                       Variable == 'Time to invasive mechanical ventilation' ~ '24 hours',
                        TRUE ~ '')
                       )
 
