@@ -46,14 +46,23 @@ swecovdata <- read_csv('../SweCovICU_AnalysedData.csv',
                          DaysWithVasopressorsInotropes = col_double()
                          )) %>% 
   # to make sure the values are presented in the logical order instead of alphabetical
-  mutate(J809worst = J809worst %>% factor(levels = c('none', 'mild','moderate','severe')),
-         AdmissionPeriod = AdmissionPeriod %>% factor(levels = c('6Apr-6May', '6Mar-5Apr')),
-         BMIcategory = BMIcategory %>% factor(levels = c('normal', 
-                                                         'underweight', 
-                                                         'overweight',
-                                                         'obesity class 1',
-                                                         'obesity class 2',
-                                                         'obesity class 3')))
+  mutate(
+    J809worst = J809worst %>% factor(levels = c('none', 'mild','moderate','severe')),
+    AdmissionPeriod = AdmissionPeriod %>% factor(levels = c('6Apr-6May', '6Mar-5Apr')),
+    BMIcategory = BMIcategory %>% factor(levels = c('normal', 
+                                                   'underweight', 
+                                                   'overweight',
+                                                   'obesity class 1',
+                                                   'obesity class 2',
+                                                   'obesity class 3')),
+    DischargedTo = DischargedTo %>% factor(levels = c('Ward',
+                                                      'Deceased',
+                                                      'Other ICU',
+                                                      'Home',
+                                                      'Not discharged',
+                                                      'Unknown')),
+    CareResult = CareResult %>% factor(levels = 'Alive','Deceased')
+    )
 
 # functions for formatting numbers in 'text' format for table output
 textsignif <- function(x, digits) {
@@ -108,7 +117,7 @@ stats_values <- function(x, digits = 1) {
   } else {
     t <- tibble(v = x) %>%
       filter(!is.na(v)) %>% 
-      group_by(v) %>% tally() %>% 
+      group_by(v, .drop = FALSE) %>% tally() %>% 
       mutate(pct = textround(100*n/sum(!is.na(x)),digits))
     output <- paste0(t$n, ' (',t$pct,'%)') %>% paste0(collapse = '<br>')
   }
@@ -129,7 +138,7 @@ value_labels <- function(x) {
   } else {
     t <- tibble(v = x) %>%
       filter(!is.na(v)) %>% 
-      group_by(v) %>% tally() 
+      group_by(v, .drop = FALSE) %>% tally() 
     output <- paste0(t$v,':') %>% paste0(collapse = '<br>')
   }
   if (class(x) == 'logical') {
@@ -139,17 +148,28 @@ value_labels <- function(x) {
   output
 }
 
+
 table1data %>% 
+  mutate(`30-day mortality` = as.character(`30-day mortality`) %>%
+           recode_factor(`FALSE` = 'surv', `TRUE` = 'non')) %>%
+  group_by(`30-day mortality`) %>%
   summarise_all(list(Label = ~value_labels(.),
                      Value = ~stats_values(.,1),
-                    `Number with data` = ~sum(!is.na(.)))
+                    n = ~sum(!is.na(.)))
                ) %>% 
-  pivot_longer(everything(), 
+  pivot_longer(-c(`30-day mortality`), 
                names_to = c('Variable','.value'),  
                names_sep = '_') %>% 
-  mutate(Variable = paste0('<b>',Variable,'</b>', '<br>', Label)) %>% 
-  select(-Label) %>% 
+  mutate(Variable = paste0('<b>',Variable, '</b>', '<br>', Label)) %>% 
+  select(-c(Label)) %>% 
+  pivot_wider(names_from = `30-day mortality`,
+              values_from = c(Value, n)) %>% 
+  mutate(`Number with data (S,N)` = paste0(n_surv+n_non, ' (', n_surv, ', ', n_non, ')')) %>% 
+  select(Variable, 
+         `Number with data (S,N)`,
+         'Survivors' = Value_surv, 'Non-Survivors' = Value_non, -c(n_surv, n_non)) %>% 
   kable(escape = F) %>% kable_styling(full_width = F, bootstrap_options = 'condensed')
+
 
 ```
 
