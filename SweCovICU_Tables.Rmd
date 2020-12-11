@@ -25,6 +25,7 @@ swecovdata <- read_csv('../SweCovICU_AnalysedData.csv',
                           Gender = col_character(),
                           SAPS3TotalPoints = col_double(),
                           ArrivalBMI = col_double(),
+                         BMIcategory = col_character(),
                           OxygenationIndex = col_double(),
                           ICUDays = col_double(),
                           DischargedTo = col_character(),
@@ -41,7 +42,8 @@ swecovdata <- read_csv('../SweCovICU_AnalysedData.csv',
                           J809worst = col_character(),
                           DaysToDeath = col_double(),
                          AdmissionPeriod = col_character(),
-                         TimeToIMV = col_double()
+                         TimeToIMV = col_double(),
+                         DaysWithVasopressorsInotropes = col_double()
                          )) %>% 
   # to make sure the values are presented in the logical order instead of alphabetical
   mutate(J809worst = J809worst %>% factor(levels = c('none', 'mild','moderate','severe')),
@@ -300,7 +302,7 @@ table3steps <- tibble(
                        Variable == 'SOFA score' ~ '1 point',
                        Variable == 'Days from symptom onset to ICU' ~ '7 days',
                        Variable == 'PAO2/FIO2 on admission' ~ '37.5 mmHg',
-                       Variable == 'Days to invasive mechanical ventilation' ~ '24 hours',
+                       Variable == 'Time to invasive mechanical ventilation' ~ '24 hours',
                        TRUE ~ '')
                       )
 
@@ -409,8 +411,8 @@ multivarResults <- exp(cbind(coef(multimodel), confint(multimodel))) %>%
                            TRUE ~ ''))
 
 
-multivar <- function(iv,ivclass) {
-  result <- multivarResults %>% 
+multivar <- function(results,iv,ivclass) {
+  result <- results %>% 
     filter(str_detect(v, iv) & iv!='Age')
   if (nrow(result) > 0) {
     output <- paste0(result$OR, ' (', result$Q1, ', ', result$Q3,')',result$sig) %>%
@@ -433,7 +435,7 @@ table3data %>%
                names_sep = '_') %>% 
   full_join(table3steps) %>% 
   group_by(Variable) %>% 
-  mutate(`Multivariable OR (95% CI)` = multivar(Variable,varclass)) %>% 
+  mutate(`Multivariable OR (95% CI)` = multivar(multivarResults, Variable,varclass)) %>% 
   ungroup() %>% 
   rename(!!paste0('Multivariable OR (95% CI) <br> n = ', Nmulti) := `Multivariable OR (95% CI)`) %>% 
   mutate(Variable = paste0('<b>',Variable,'</b>', '<br>', Label,UnitStep)) %>% 
@@ -445,7 +447,7 @@ table3data %>%
 
 # Sensitivity
 
-## sensitivity admission
+## eTable 1 sensitivity admission
 
 30 day mortality by admission period
 ```{r}
@@ -589,7 +591,7 @@ firstmonth %>%
                names_sep = '_') %>% 
   full_join(table3steps) %>% 
   group_by(Variable) %>% 
-  mutate(`Multivariable OR (95% CI)` = multivar(Variable,varclass)) %>% 
+  mutate(`Multivariable OR (95% CI)` = multivar(multivarResults.1stmonth,Variable,varclass)) %>% 
   ungroup() %>% 
   rename(!!paste0('Multivariable OR (95% CI) <br> n = ', N.1stmonth) := `Multivariable OR (95% CI)`) %>% 
   mutate(Variable = paste0('<b>',Variable,'</b>', '<br>', Label,UnitStep)) %>% 
@@ -659,13 +661,13 @@ anova(multimodel.noint,multimodel.int, test = 'Chisq')
 
 ```
 
-## BMI sensitivity
+## eTable 2 BMI sensitivity
 
 ```{r}
 
 BMIdata <- swecovdata %>% 
   select(Mortality30days, 
-         BMI = ArrivalBMI, # added this
+         BMI = BMIcategory, # added this
          `Age Group` = AgeGroup,
          Age,
          Sex = Gender,
@@ -692,8 +694,7 @@ BMIdata <- swecovdata %>%
          `Vasopressors/Inotropes` = VasoInoAny,
          CRRT, 
          `Transfer to other ICU` = ICUtransferred) %>% 
-  mutate(BMI = BMI/5,
-         Age = Age/10,
+  mutate(Age = Age/10,
          `SAPS III score` = `SAPS III score`/5,
          `SOFA score` = `SOFA score`/1,
          `Days from symptom onset to ICU` = `Days from symptom onset to ICU`/7,
@@ -767,8 +768,7 @@ multivarResults.BMI <- exp(cbind(coef(multi.BMI), confint(multi.BMI))) %>%
 
 tablesteps.BMI <- tibble(
   Variable = names(BMIdata)[names(BMIdata)!="Mortality30days"],
-  UnitStep = case_when(Variable == 'BMI' ~ '5 points',
-                       Variable == 'Age' ~ '10 years',
+  UnitStep = case_when(Variable == 'Age' ~ '10 years',
                        Variable == 'SAPS III score' ~ '5 points',
                        Variable == 'SOFA score' ~ '1 point',
                        Variable == 'Days from symptom onset to ICU' ~ '7 days',
@@ -788,7 +788,7 @@ BMIdata %>%
                names_sep = '_') %>% 
   full_join(tablesteps.BMI) %>% 
   group_by(Variable) %>% 
-  mutate(`Multivariable OR (95% CI)` = multivar(Variable,varclass)) %>% 
+  mutate(`Multivariable OR (95% CI)` = multivar(multivarResults.BMI,Variable,varclass)) %>% 
   ungroup() %>% 
   rename(!!paste0('Multivariable OR (95% CI) <br> n = ', N.BMI) := `Multivariable OR (95% CI)`) %>% 
   mutate(Variable = paste0('<b>',Variable,'</b>', '<br>', Label,UnitStep)) %>% 
