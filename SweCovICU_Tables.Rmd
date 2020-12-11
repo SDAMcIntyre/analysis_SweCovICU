@@ -255,6 +255,66 @@ table2 %>%
 
 ```
 
+# uni- & multi-variable functions
+```{r}
+table3_labels <- function(x) {
+  if (is.numeric(x)) {
+    output <- 'Continuous. OR per increase of '
+  } else {
+    t <- tibble(v = x) %>%
+      filter(!is.na(v)) %>% 
+      group_by(v) %>% tally() 
+  }
+  if (!is.logical(x) & !is.numeric(x)) {
+    t <- t %>% mutate(v = v %>% as.character())
+    t$v[1] <- paste0('(Reference: ',t$v[1],')')
+    output <- paste0(t$v,collapse = '<br>')
+  }
+  if (is.logical(x)) {
+    t <- t %>% filter(v)
+    output <- ''
+  }
+  output
+}
+
+univar <- function(dv, iv, digits =1) {
+  unimodel <- glm(dv ~ iv, family=binomial(link="logit"))
+  result <- exp(cbind(coef(unimodel), confint(unimodel))) %>% 
+    cbind(coef(summary(unimodel))[,4]) %>%  
+    as_tibble(rownames = 'v') %>% .[-1,] %>%
+    set_names(c('v','OR', 'Q1', 'Q3', 'p')) %>% 
+    mutate(sig = case_when(p < 0.001 ~ '***',
+                           p < 0.01 ~ '**',
+                           p < 0.05 ~ '*',
+                           TRUE ~ ''))
+  output <- paste0(textround(result$OR, digits), 
+                   ' (', textround(result$Q1, digits), ', ', 
+                   textround(result$Q3, digits),')',
+                   result$sig) %>% 
+    paste0(collapse = '<br>') 
+  if (!is.logical(iv)) output <- paste0('<br>',output)
+  if (!is.logical(iv) & !is.numeric(iv)) output <- paste0('<br>',output)
+  
+  output
+  # return(result)
+}
+
+multivar <- function(results,iv,ivclass) {
+  result <- results %>% 
+    filter(str_detect(v, iv) & iv!='Age')
+  if (nrow(result) > 0) {
+    output <- paste0(result$OR, ' (', result$Q1, ', ', result$Q3,')',result$sig) %>%
+      paste0(collapse = '<br>') 
+    } else {output <- '-'}
+  if (ivclass != 'logical') output <- paste0('<br>',output)
+  if (ivclass != 'logical' & ivclass != 'numeric') output <- paste0('<br>',output)
+  
+  output
+}
+
+
+```
+
 
 # Table 3
 
@@ -330,47 +390,6 @@ Nmulti <- table3data %>%
          `Transfer to other ICU`) %>% 
   na.omit() %>% nrow()
 
-table3_labels <- function(x) {
-  if (is.numeric(x)) {
-    output <- 'Continuous. OR per increase of '
-  } else {
-    t <- tibble(v = x) %>%
-      filter(!is.na(v)) %>% 
-      group_by(v) %>% tally() 
-  }
-  if (!is.logical(x) & !is.numeric(x)) {
-    t <- t %>% mutate(v = v %>% as.character())
-    t$v[1] <- paste0('(Reference: ',t$v[1],')')
-    output <- paste0(t$v,collapse = '<br>')
-  }
-  if (is.logical(x)) {
-    t <- t %>% filter(v)
-    output <- ''
-  }
-  output
-}
-
-univar <- function(dv, iv, digits =1) {
-  unimodel <- glm(dv ~ iv, family=binomial(link="logit"))
-  result <- exp(cbind(coef(unimodel), confint(unimodel))) %>% 
-    cbind(coef(summary(unimodel))[,4]) %>%  
-    as_tibble(rownames = 'v') %>% .[-1,] %>%
-    set_names(c('v','OR', 'Q1', 'Q3', 'p')) %>% 
-    mutate(sig = case_when(p < 0.001 ~ '***',
-                           p < 0.01 ~ '**',
-                           p < 0.05 ~ '*',
-                           TRUE ~ ''))
-  output <- paste0(textround(result$OR, digits), 
-                   ' (', textround(result$Q1, digits), ', ', 
-                   textround(result$Q3, digits),')',
-                   result$sig) %>% 
-    paste0(collapse = '<br>') 
-  if (!is.logical(iv)) output <- paste0('<br>',output)
-  if (!is.logical(iv) & !is.numeric(iv)) output <- paste0('<br>',output)
-  
-  output
-  # return(result)
-}
 
 # univar(table3data$Mortality30days,table3data$`Age Group`)
 
@@ -410,19 +429,6 @@ multivarResults <- exp(cbind(coef(multimodel), confint(multimodel))) %>%
                            p < 0.05 ~ '*',
                            TRUE ~ ''))
 
-
-multivar <- function(results,iv,ivclass) {
-  result <- results %>% 
-    filter(str_detect(v, iv) & iv!='Age')
-  if (nrow(result) > 0) {
-    output <- paste0(result$OR, ' (', result$Q1, ', ', result$Q3,')',result$sig) %>%
-      paste0(collapse = '<br>') 
-    } else {output <- '-'}
-  if (ivclass != 'logical') output <- paste0('<br>',output)
-  if (ivclass != 'logical' & ivclass != 'numeric') output <- paste0('<br>',output)
-  
-  output
-}
 
 table3data %>% 
   summarise_at(vars(-Mortality30days),
@@ -799,7 +805,7 @@ BMIdata %>%
 ```
 
 
-## BMI sensitivity
+## eTable 3 vaso sensitivity
 
 ```{r}
 
@@ -904,7 +910,7 @@ multivarResults.vaso <- exp(cbind(coef(multi.vaso), confint(multi.vaso))) %>%
 
 
 tablesteps.vaso <- tibble(
-  Variable = names(BMIdata)[names(BMIdata)!="Mortality30days"],
+  Variable = names(vasodata)[names(vasodata)!="Mortality30days"],
   UnitStep = case_when(Variable == 'Age' ~ '10 years',
                        Variable == 'SAPS III score' ~ '5 points',
                        Variable == 'SOFA score' ~ '1 point',
@@ -914,7 +920,7 @@ tablesteps.vaso <- tibble(
                        TRUE ~ '')
                       )
 
-BMIdata %>% 
+vasodata %>% 
   summarise_at(vars(-Mortality30days),
                list(Label = ~table3_labels(.),
                     `Univariable OR (95% CI)` = ~ univar(Mortality30days, .),
@@ -925,7 +931,7 @@ BMIdata %>%
                names_sep = '_') %>% 
   full_join(tablesteps.vaso) %>% 
   group_by(Variable) %>% 
-  mutate(`Multivariable OR (95% CI)` = multivar(Variable,varclass)) %>% 
+  mutate(`Multivariable OR (95% CI)` = multivar(multivarResults.vaso,Variable,varclass)) %>% 
   ungroup() %>% 
   rename(!!paste0('Multivariable OR (95% CI) <br> n = ', N.vaso) := `Multivariable OR (95% CI)`) %>% 
   mutate(Variable = paste0('<b>',Variable,'</b>', '<br>', Label,UnitStep)) %>% 
