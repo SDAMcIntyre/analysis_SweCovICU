@@ -160,25 +160,26 @@ table1data %>%
 table2data <- swecovdata %>% 
   # put them in order
   select(Mortality30days, 
-         `Invasive mechanical ventilation n (%)` = InvasiveMechanicalVentilation, 
+         `Invasive mechanical ventilation, n (%)` = InvasiveMechanicalVentilation, 
          InvasiveMechVentDays, 
-         `Noninvasive mechanical ventilation n (%)` = NonInvasiveMechVent,
-         `Invasive mechanical ventilation on day of admission n (%)` = IMVonAdmission,
-         `HFNO n (%)` = OxHighFlowNasalCanula, 
-         `Prone positioning  n (%)` = CarePronePatient, 
-         `ECMO n (%)` = ECMO, 
-         `Specific pharmacotherapy n (%)` = SpecPharmAny, 
-         `HC1/Cq n (%)` = CovidMedicineKlorokinfosfat, 
-         `Lopinavir/ritonavir n (%)` = LopinavirOrRitonavir, 
-         `Remdesivir n (%)` = CovidMedicineRemdesivir, 
-         `Tocilizumab n (%)` = CovidMedicineTocilizumab, 
-         `Steroids for ARDS n (%)` = CovidMedeicineSteroids, 
-         `Other n (%)` = OtherPharmAny, 
-         `Vasopressors/inotropes n (%)` = VasoInoAny, 
-         `CRRT n (%)` = CRRT)
+         TimeToIMV,  
+         `Noninvasive mechanical ventilation, n (%)` = NonInvasiveMechVent,
+         `Invasive mechanical ventilation on day of admission, n (%)` = IMVonAdmission,
+         `HFNO, n (%)` = OxHighFlowNasalCanula, 
+         `Prone positioning, n (%)` = CarePronePatient, 
+         `ECMO, n (%)` = ECMO, 
+         `Specific pharmacotherapy, n (%)` = SpecPharmAny, 
+         `HC1/Cq, n (%)` = CovidMedicineKlorokinfosfat, 
+         `Lopinavir/ritonavir, n (%)` = LopinavirOrRitonavir, 
+         `Remdesivir, n (%)` = CovidMedicineRemdesivir, 
+         `Tocilizumab, n (%)` = CovidMedicineTocilizumab, 
+         `Steroids for ARDS, n (%)` = CovidMedeicineSteroids, 
+         `Other, n (%)` = OtherPharmAny, 
+         `Vasopressors/inotropes, n (%)` = VasoInoAny, 
+         `CRRT, n (%)` = CRRT)
 
 table2results <- table2data %>% 
-  select(-InvasiveMechVentDays) %>% 
+  select(-c(InvasiveMechVentDays,TimeToIMV)) %>% 
   pivot_longer(cols = -c('Mortality30days'), names_to = 'Treatment') %>% 
   mutate(Treatment = factor(Treatment, levels = names(table2data)[-c(1,3)])) %>% 
   group_by(Treatment) %>% 
@@ -230,27 +231,39 @@ quant_values <- function(x, digits = 1) {
 modeldays <- glm(Mortality30days ~ InvasiveMechVentDays, 
                 family=binomial(link="logit"),
                         data = table2data)
+
+modeldelay <- glm(Mortality30days ~ TimeToIMV,
+                family=binomial(link="logit"),
+                        data = table2data)
+
+quant_entry <- function(df, qvar, name) {
+  df %>%
+    summarise(
+      Treatment = name,
+      `Number with data` = sum(!is.na({{qvar}})),
+      All = quant_values({{qvar}},0),
+      Survivors = if_else(Mortality30days, as.numeric(NA), {{qvar}}) %>%
+        quant_values(0),
+      `Non-survivors` = if_else(Mortality30days, {{qvar}}, as.numeric(NA)) %>% 
+        quant_values(0),
+              p = coef(summary(modeldays))[2,4],
+              `p-value` = if_else(p < 0.0001, '< 0.0001', textsignif(p,3) )
+          ) %>% 
+            select(-p)
+}
+
 table2 %>% 
-  filter(Treatment == 'Invasive mechanical ventilation n (%)') %>% 
+  filter(Treatment == 'Invasive mechanical ventilation, n (%)') %>% 
   bind_rows(
-    
-    table2data %>%
-      summarise(
-        Treatment = 'No. days of invasive mechanical ventilation median (IQR)',
-        `Number with data` = sum(!is.na(InvasiveMechVentDays)),
-        All = quant_values(InvasiveMechVentDays,0),
-        Survivors = if_else(Mortality30days, as.numeric(NA), InvasiveMechVentDays) %>%
-          quant_values(0),
-        `Non-survivors` = if_else(Mortality30days, InvasiveMechVentDays, as.numeric(NA)) %>% 
-          quant_values(0),
-                p = coef(summary(modeldays))[2,4],
-                `p-value` = if_else(p < 0.0001, '< 0.0001', textsignif(p,3) )
-            ) %>% 
-              select(-p)
-            
+    quant_entry(table2data, InvasiveMechVentDays, 
+                'No. days of invasive mechanical ventilation, median (IQR)')
+    ) %>% 
+  bind_rows(
+    quant_entry(table2data, TimeToIMV, 
+                'Hours to invasive mechanical ventilation, median (IQR)')
     ) %>% 
   bind_rows(table2 %>%
-              filter(Treatment != 'Invasive mechanical ventilation n (%)')) %>% 
+              filter(Treatment != 'Invasive mechanical ventilation, n (%)')) %>% 
   kable(escape = F) %>% kable_styling(full_width = F, bootstrap_options = 'condensed')
 
 ```
