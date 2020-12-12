@@ -1173,6 +1173,13 @@ fisher.test(xtabs(~ Mortality30days + ICUtransferred, swecovdata))
 
 ```
 
+# Time to death from admission
+```{r}
+swecovdata %>% 
+  filter(Mortality30days) %>% 
+  summarise(stats_values(DaysToDeath))
+
+```
 
 
 # end
