@@ -7,7 +7,7 @@ output:
   html_document:
     df_print: paged
 ---
-
+# setup
 ```{r setup}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
@@ -1179,6 +1179,16 @@ swecovdata %>%
   filter(Mortality30days) %>% 
   summarise(stats_values(DaysToDeath))
 
+```
+## BMI category
+```{r message=FALSE, warning=FALSE}
+swecovdata %>% 
+  tabyl(BMIcategory, Mortality30days) %>% 
+  adorn_totals('col') %>% 
+  adorn_percentages('row') %>% 
+  adorn_pct_formatting() %>% 
+  adorn_ns() %>% 
+  kable() %>% kable_styling(full_width = F)
 ```
 
 
